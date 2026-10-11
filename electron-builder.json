@@ -1,0 +1,27 @@
+{
+  "appId": "app.cawal.dictation",
+  "productName": "Cawal",
+  "artifactName": "Cawal-Setup-${version}.${ext}",
+  "directories": { "output": "dist/releases" },
+  "files": ["app/**", "build/renderer/**", "resources/icon.png", "package.json", "LICENSE"],
+  "extraResources": [{ "from": "resources/bin/cawal-paste.exe", "to": "bin/cawal-paste.exe" }],
+  "asar": true,
+  "npmRebuild": false,
+  "publish": null,
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "resources/icon.ico",
+    "signAndEditExecutable": true,
+    "forceCodeSigning": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Cawal",
+    "license": "LICENSE",
+    "deleteAppDataOnUninstall": false
+  }
+}
