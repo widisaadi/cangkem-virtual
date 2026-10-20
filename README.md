@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resources/readme-banner.png" alt="Ilustrasi Cawal: suara dari mulut mengalir ke laptop yang sedang mengetik" width="100%">
+</p>
+
 # Cawal — Cangkem Virtual
 
 Dictation sederhana untuk Windows. Tampilan Quiet Graphite dengan aksen
