@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { unwrap, busyPhases, labels, type Snapshot, type OnboardingStep } from './types';
 import ShortcutEditor, { Shortcut } from './ShortcutEditor';
 import KeyField from './KeyField';
-import logo from '../resources/logo.png';
+import logo from '../resources/brand.png';
 
 const tagline = 'Pake Cangkem Virtual , Build Aplikasi 2.5x Lebih Cepat';
 const steps: OnboardingStep[] = ['welcome', 'connect', 'shortcut', 'trial', 'ready'];
@@ -35,11 +35,11 @@ export default function Onboarding({ state }: { state: Snapshot }) {
   const shortcut = <ShortcutEditor value={state.settings.hotkey} capturing={state.shortcutCapturing} disabled={disabled}
     onSave={async hotkey => { await unwrap(api.saveSettings({ ...state.settings, hotkey })); }} />;
   return <main className={`onboarding ${state.setupFromInstaller ? 'from-installer' : ''}`} aria-label="Set up Cawal">
-    {state.setupFromInstaller && <aside className="setup-rail"><div><span className="setup-rail-logo" aria-hidden="true" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} /><p>Less typing.<br /><span>More flow.</span></p><div className="setup-rail-description">Your Windows voice companion.</div></div><small>WINDOWS / 64-BIT<br />Cawal setup</small></aside>}
+    {state.setupFromInstaller && <aside className="setup-rail"><div><img className="setup-rail-logo" src={logo} alt="Cawal" /><p>Less typing.<br /><span>More flow.</span></p><div className="setup-rail-description">Your Windows voice companion.</div></div><small>WINDOWS / 64-BIT<br />Cawal setup</small></aside>}
     <div className="setup-main">
     <div className="setup-progress" aria-label={`Step ${visibleSteps.indexOf(step) + 1} of ${visibleSteps.length}`}>{visibleSteps.map((item, index) => <span key={item} className={index <= visibleSteps.indexOf(step) ? 'active' : ''} />)}</div>
     <section className={`setup-content setup-${step}`} key={step}>
-      {!state.setupFromInstaller && <span className="setup-logo" aria-hidden="true" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} />}
+      {!state.setupFromInstaller && <img className="setup-logo" src={logo} alt="Cawal" />}
       <p className="setup-eyebrow">{step === 'welcome' ? 'WELCOME TO CAWAL' : `GETTING STARTED · ${visibleSteps.indexOf(step) + 1} / ${visibleSteps.length}`}</p>
       <h1>{step === 'welcome' ? tagline : step === 'connect' ? 'Connect Groq' : step === 'shortcut' ? 'Set your shortcut' : step === 'trial' ? 'Try your first dictation' : 'You’re ready to dictate.'}</h1>
       {step === 'welcome' && <p className="setup-description">Speak naturally. Let Cawal do the typing.</p>}

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Windows;
@@ -19,6 +20,8 @@ using Microsoft.Win32;
 // this launcher never reads or changes the user's application settings or key.
 internal static class Installer
 {
+    [DllImport("shell32.dll")]
+    static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
     static readonly Assembly Assembly = System.Reflection.Assembly.GetExecutingAssembly();
     static readonly string Version = ReadText("setup.version").Trim();
     static readonly string PayloadHash = ReadText("setup.sha256").Trim();
@@ -129,6 +132,7 @@ internal static class Installer
         string executable = Path.Combine(directory, "Cawal.exe");
         if (!File.Exists(executable) || !FileVersionInfo.GetVersionInfo(executable).ProductVersion.StartsWith(Version, StringComparison.Ordinal))
             throw new InvalidOperationException("Installation did not finish. Check the folder permissions and try again.");
+        SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
         return 0;
     }
 
@@ -191,7 +195,7 @@ internal sealed class SetupWindow : Window
     <Border Background='#1C2122' BorderBrush='#303739' BorderThickness='0,0,1,0'>
      <Grid Margin='27,32'>
       <Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/><RowDefinition Height='Auto'/></Grid.RowDefinitions>
-      <StackPanel><Image x:Name='Logo' Width='82' Height='48' Stretch='Uniform' HorizontalAlignment='Left' Margin='0,0,0,26'/>
+      <StackPanel><Image x:Name='Logo' Width='72' Height='72' Stretch='Uniform' HorizontalAlignment='Left' Margin='0,0,0,24'/>
        <TextBlock Text='Less typing.' FontSize='23' FontWeight='SemiBold' LineHeight='31'/>
        <TextBlock Text='More flow.' FontSize='23' FontWeight='SemiBold' LineHeight='31' Foreground='#FFDD33'/>
        <TextBlock Text='Your Windows voice companion.' FontSize='12' Foreground='#A9B3B6' Margin='0,17,0,0' LineHeight='21'/>
@@ -276,8 +280,7 @@ internal sealed class SetupWindow : Window
         using (var stream = Installer.Resource("setup.logo"))
         {
             var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit();
-            // The source logo has generous transparent margins. Trim those at
-            // render time so the visible mark aligns with the text beneath it.
+            // Use visible artwork bounds so the mark aligns with its caption.
             var pixels = new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
             int stride = pixels.PixelWidth * 4;
             var bytes = new byte[stride * pixels.PixelHeight]; pixels.CopyPixels(bytes, stride, 0);

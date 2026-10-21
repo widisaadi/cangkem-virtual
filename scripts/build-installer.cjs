@@ -30,7 +30,7 @@ const refs = ['System.dll', 'System.Core.dll', 'System.Xaml.dll', 'WindowsBase.d
 const args = ['/nologo', '/optimize+', '/platform:x64', '/target:winexe', '/out:' + payload,
   '/win32icon:' + path.join(root, 'resources', 'icon.ico'),
   '/resource:' + bundled + ',setup.payload',
-  '/resource:' + path.join(root, 'resources', 'logo.png') + ',setup.logo',
+  '/resource:' + path.join(root, 'resources', 'brand.png') + ',setup.logo',
   '/resource:' + path.join(root, 'LICENSE') + ',setup.license',
   '/resource:' + path.join(staging, 'version.txt') + ',setup.version',
   '/resource:' + path.join(staging, 'sha256.txt') + ',setup.sha256',

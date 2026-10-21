@@ -79,6 +79,8 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     assert.deepEqual(await js('Array.from(document.querySelector("#language").options, option => option.text)'), ['Indonesia', 'Cirebon']);
     assert.equal(await js('document.documentElement.lang'), 'en');
     assert.equal(await js('document.querySelector("h1").textContent'), 'Settings');
+    await until(() => js('document.querySelector("img.logo").complete && document.querySelector("img.logo").naturalWidth > 0'), 'full-color brand image loaded');
+    assert.equal(await js('getComputedStyle(document.querySelector("img.logo")).maskImage'), 'none', 'full-color logo is not replaced by a monochrome mask');
     await js(`document.querySelector('#language').value = 'cirebon'; document.querySelector('#language').dispatchEvent(new Event('change', { bubbles: true }));`);
     await until(() => store.read().cirebon && store.read().language === 'auto', 'Cirebon enabled');
     await until(() => js('!document.querySelector("#language").disabled'), 'language save complete');

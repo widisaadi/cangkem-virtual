@@ -1,14 +1,14 @@
-# Cawal mouth mark
+# Cawal brand artwork
 
-Generated with the built-in imagegen tool; transparent PNG, no lettering.
-The interface uses the PNG alpha channel as a CSS mask filled with #ffdd33
-(or black on yellow buttons). `npm run build:icons` exports this same treatment
-to icon.png and icon.ico for Electron, the taskbar, tray and Windows installer.
+`logo.png` is the original full-color artwork supplied by the project owner.
+It depicts a person speaking toward a laptop on a rounded yellow tile.
 
-Direction: a simple monoline pursed mouth speaking to the right, with three
-short sound rays; rounded line ends; black and #ffdd33 only; no gradients,
-shading, face, microphone or surrounding badge.
+Run `npm run build:icons` to produce:
 
-Refinement prompt: preserve the pursed speaking mouth and three rays; make the
-stroke 25% thinner and uniform; remove all noise and speckles; use a clean,
-flat, SVG-like yellow line with transparent background.
+- `brand.png`: display artwork with only the connected outer white background
+  removed and empty margins trimmed. White details inside the laptop are preserved.
+- `icon.png`: the 256px application and tray icon.
+- `icon.ico`: Windows icons at 16, 24, 32, 48, 64, 128, and 256px.
+
+Settings, onboarding, and the installer display the full-color artwork directly.
+Do not use the alpha channel as a monochrome CSS mask.

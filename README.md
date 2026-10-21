@@ -2,7 +2,7 @@
   <img src="resources/readme-banner.png" alt="Cawal turns spoken words into text on your laptop" width="100%">
 </p>
 
-# Cawal
+# <img src="resources/icon.png" width="36" height="36" alt=""> Cawal
 
 **Voice dictation for Windows. Speak, press a shortcut, and keep writing.**
 

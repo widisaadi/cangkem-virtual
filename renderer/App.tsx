@@ -6,12 +6,12 @@ import { createRecorder } from './recorder';
 import { unwrap, busyPhases, labels, type Snapshot, type Settings } from './types';
 import ShortcutEditor from './ShortcutEditor';
 import FlowLine from './FlowLine';
-import logo from '../resources/logo.png';
+import logo from '../resources/brand.png';
 
 const api = window.cawal;
 const isOverlay = new URLSearchParams(location.search).has('overlay');
 function Logo() {
-  return <span aria-hidden="true" className="logo" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} />;
+  return <img aria-hidden="true" className="logo" src={logo} alt="" />;
 }
 function SectionIcon({ kind }: { kind: 'voice' | 'writing' | 'windows' }) {
   return <span className="section-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{kind === 'voice' ? <><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></> : kind === 'writing' ? <><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></> : <><path d="M3 5l8-1v7H3zM14 4l7-1v8h-7zM3 14h8v7l-8-1zM14 14h7v8l-7-1z" /></>}</svg></span>;

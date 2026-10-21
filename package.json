@@ -21,8 +21,8 @@
     "test:desktop": "npm run build:renderer && npm run build:native && electron . --smoke-test",
     "test:installer": "node scripts/test-installer.cjs",
     "check": "npm run typecheck && npm test && npm run build:renderer",
-    "pack": "npm run check && npm run build:native && npm run build:icons && electron-builder --win --dir",
-    "build:win": "npm run check && npm run build:native && npm run build:icons && node scripts/build-win.cjs",
+    "pack": "npm run build:icons && npm run check && npm run build:native && electron-builder --win --dir",
+    "build:win": "npm run build:icons && npm run check && npm run build:native && node scripts/build-win.cjs",
     "build": "npm run build:win"
   },
   "dependencies": {
