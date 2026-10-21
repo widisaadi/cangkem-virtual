@@ -49,6 +49,10 @@ Run `npm run test:installer` after building to render all installer screens and
 check navigation and folder validation without installing the application.
 The installer also supports `/S /D=<absolute folder>` for silent installation.
 Existing application settings and onboarding completion are preserved.
+After an interactive installation, Setup launches Cawal with `--setup-after-install`.
+That mode continues directly to Groq, shortcut selection, optional dictation
+practice, and completion using the installer's visual theme. Existing users use
+an in-memory review flow; their persisted onboarding completion is not reset.
 
 ## Implementation details
 

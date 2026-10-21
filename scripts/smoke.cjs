@@ -9,7 +9,7 @@ async function until(check, label, timeout = 12000) {
   while (Date.now() - start < timeout) { if (await check()) return; await delay(100); }
   throw new Error(`Timed out: ${label}`);
 }
-exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard }) => {
+exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, setupFlow, broadcast }) => {
   const errors = [];
   mainWindow.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   const js = source => mainWindow.webContents.executeJavaScript(source, true);
@@ -224,6 +224,32 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard }) 
     clipboard.writeText('Cawal native paste test');
     const native = await promisify(execFile)(fixture, [path.join(__dirname, '..', 'resources', 'bin', 'cawal-paste.exe')], { windowsHide: true, timeout: 12000 });
     console.log(native.stdout.trim());
+    const savedBeforeInstallerSetup = fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8');
+    setupFlow.start(); mainWindow.setSize(850, 620); broadcast();
+    await until(() => js('Boolean(document.querySelector(".from-installer .setup-connect"))'), 'installer continues to Groq setup for existing users');
+    assert.equal(await js('document.querySelector("#groq-key").value'), '••••••••••••••••');
+    assert.equal(store.onboarding(), 'complete', 'installer review does not reset saved completion');
+    await capture('cawal-installer-connect.png');
+    await js('document.querySelector(".setup-next").click()');
+    await until(() => js('Boolean(document.querySelector(".setup-shortcut"))'), 'installer shortcut step');
+    await capture('cawal-installer-shortcut.png');
+    await js('document.querySelector(".setup-next").click()');
+    await until(() => js('Boolean(document.querySelector("#practice-text"))'), 'installer practice step');
+    mainWindow.show(); mainWindow.focus();
+    await until(() => mainWindow.isFocused(), 'installer practice focused');
+    await js('document.querySelector("#practice-text").focus()');
+    await dictation.start({ paste: true });
+    await until(() => dictation.snapshot().phase === 'recording', 'installer practice records');
+    await delay(1200); dictation.stop();
+    await until(() => js('document.querySelector("#practice-text").value.includes("Aja bobad")'), 'installer practice receives dictation');
+    await capture('cawal-installer-trial.png');
+    await js('document.querySelector(".skip-practice").click()');
+    await until(() => js('Boolean(document.querySelector(".setup-ready"))'), 'installer final step');
+    await capture('cawal-installer-ready.png');
+    await js('document.querySelector(".setup-next").click()');
+    await until(() => js('Boolean(document.querySelector(".navigation"))'), 'installer setup opens settings');
+    assert.equal(setupFlow.fromInstaller(), false);
+    assert.equal(fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8'), savedBeforeInstallerSetup, 'existing key and preferences preserved byte-for-byte');
     await js('document.querySelectorAll(".tabs button")[1].click()');
     await until(() => js('Boolean(document.querySelector(".remove-key"))'), 'remove key control ready');
     await js('document.querySelector(".remove-key").click()');

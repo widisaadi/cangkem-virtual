@@ -18,6 +18,7 @@ export default function Onboarding({ state }: { state: Snapshot }) {
   const busy = busyPhases.includes(state.phase);
   const disabled = working || busy;
   const step = state.onboarding;
+  const visibleSteps = state.setupFromInstaller ? steps.slice(1) : steps;
   useEffect(() => {
     if (step === 'trial' && state.phase === 'done' && state.result?.message === 'Practice complete.' && state.result.id !== lastResult.current) {
       lastResult.current = state.result.id;
@@ -33,11 +34,13 @@ export default function Onboarding({ state }: { state: Snapshot }) {
   const move = (next: OnboardingStep) => void run(() => unwrap(api.onboarding(next)));
   const shortcut = <ShortcutEditor value={state.settings.hotkey} capturing={state.shortcutCapturing} disabled={disabled}
     onSave={async hotkey => { await unwrap(api.saveSettings({ ...state.settings, hotkey })); }} />;
-  return <main className="onboarding" aria-label="Set up Cawal">
-    <div className="setup-progress" aria-label={`Step ${steps.indexOf(step) + 1} of 5`}>{steps.map((item, index) => <span key={item} className={index <= steps.indexOf(step) ? 'active' : ''} />)}</div>
+  return <main className={`onboarding ${state.setupFromInstaller ? 'from-installer' : ''}`} aria-label="Set up Cawal">
+    {state.setupFromInstaller && <aside className="setup-rail"><div><span className="setup-rail-logo" aria-hidden="true" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} /><p>Less typing.<br /><span>More flow.</span></p><div className="setup-rail-description">Your Windows voice companion.</div></div><small>WINDOWS / 64-BIT<br />Cawal setup</small></aside>}
+    <div className="setup-main">
+    <div className="setup-progress" aria-label={`Step ${visibleSteps.indexOf(step) + 1} of ${visibleSteps.length}`}>{visibleSteps.map((item, index) => <span key={item} className={index <= visibleSteps.indexOf(step) ? 'active' : ''} />)}</div>
     <section className={`setup-content setup-${step}`} key={step}>
-      <span className="setup-logo" aria-hidden="true" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} />
-      <p className="setup-eyebrow">{step === 'welcome' ? 'WELCOME TO CAWAL' : `GETTING STARTED · ${steps.indexOf(step) + 1} / 5`}</p>
+      {!state.setupFromInstaller && <span className="setup-logo" aria-hidden="true" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} />}
+      <p className="setup-eyebrow">{step === 'welcome' ? 'WELCOME TO CAWAL' : `GETTING STARTED · ${visibleSteps.indexOf(step) + 1} / ${visibleSteps.length}`}</p>
       <h1>{step === 'welcome' ? tagline : step === 'connect' ? 'Connect Groq' : step === 'shortcut' ? 'Set your shortcut' : step === 'trial' ? 'Try your first dictation' : 'You’re ready to dictate.'}</h1>
       {step === 'welcome' && <p className="setup-description">Speak naturally. Let Cawal do the typing.</p>}
       {step === 'connect' && <>
@@ -59,7 +62,7 @@ export default function Onboarding({ state }: { state: Snapshot }) {
       {step === 'ready' && <><p className="setup-description">Use your shortcut in any app. Cawal stays ready in the background.</p><div className="ready-shortcut"><Shortcut value={state.settings.hotkey} /></div></>}
       {(error || state.error || state.warning || state.storageWarning) && <p className="message" role="alert">{error || state.error || state.warning || state.storageWarning}</p>}
       <div className="setup-actions">
-        {step !== 'welcome' && <button className="text-button" disabled={disabled} onClick={() => move(steps[steps.indexOf(step) - 1])}>Back</button>}
+        {visibleSteps.indexOf(step) > 0 && <button className="text-button" disabled={disabled} onClick={() => move(visibleSteps[visibleSteps.indexOf(step) - 1])}>Back</button>}
         {step === 'trial' && <button className="text-button skip-practice" disabled={disabled} onClick={() => move('ready')}>Skip for now</button>}
         <button className="primary setup-next" disabled={disabled || (step === 'connect' && !key.trim() && !state.hasKey) || (step === 'shortcut' && (!!state.shortcutError || state.shortcutCapturing))}
           onClick={() => {
@@ -69,8 +72,9 @@ export default function Onboarding({ state }: { state: Snapshot }) {
               await unwrap(api.onboarding('shortcut'));
             });
             else move(step === 'welcome' ? 'connect' : step === 'shortcut' ? 'trial' : step === 'trial' ? 'ready' : 'complete');
-          }}>{working ? 'Checking…' : step === 'welcome' ? 'Get started' : step === 'connect' ? 'Save & continue' : step === 'ready' ? 'Open settings' : 'Continue'}</button>
+          }}>{working ? 'Checking…' : step === 'welcome' ? 'Get started' : step === 'connect' ? 'Save & continue' : step === 'ready' ? state.setupFromInstaller ? 'Finish setup' : 'Open settings' : 'Continue'}</button>
       </div>
     </section>
+    </div>
   </main>;
 }

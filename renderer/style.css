@@ -211,6 +211,31 @@ kbd { min-width: 76px; padding: 12px 18px; font-size: 14px; font-weight: 700; bo
 #practice-text { width: 100%; min-height: 140px; resize: vertical; padding: 17px; font: inherit; line-height: 1.7; color: var(--text); background: #202526; border: 1px solid #525d60; border-radius: 12px; }
 #practice-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .ready-shortcut { display: flex; justify-content: center; margin: 30px 0; }
+.setup-titlebar-label { margin-left: 13px; color: var(--muted); font-size: 13px; }
+.onboarding.from-installer { display: grid; grid-template-columns: 230px minmax(0, 1fr); padding: 0; overflow: hidden; }
+.setup-rail { display: flex; flex-direction: column; justify-content: space-between; background: #1c2122; border-right: 1px solid #303739; padding: 34px 28px; }
+.setup-rail-logo { display: block; width: 82px; height: 48px; background: var(--accent); mask: center / 102px 102px no-repeat; -webkit-mask: center / 102px 102px no-repeat; margin-bottom: 26px; }
+.setup-rail p { font-family: 'Segoe UI', sans-serif; font-size: 23px; font-weight: 600; line-height: 1.35; }
+.setup-rail p span { color: var(--accent); }
+.setup-rail-description { font-family: 'Segoe UI', sans-serif; font-size: 12px; line-height: 1.75; color: var(--muted); margin-top: 17px; }
+.setup-rail small { font-size: 10px; line-height: 2; color: var(--muted); }
+.from-installer .setup-main { overflow-y: auto; min-width: 0; padding: 27px 32px 30px; }
+.from-installer .setup-content { max-width: none; }
+.from-installer .setup-progress { margin: 0 0 25px; }
+.from-installer .setup-content h1 { font-size: 27px; }
+.from-installer .setup-description { font-size: 12px; line-height: 1.75; }
+.from-installer .setup-form { padding: 19px; margin-top: 21px; }
+.from-installer .setup-ready { padding-top: 5px; text-align: left; }
+.from-installer .ready-shortcut { justify-content: flex-start; }
+.from-installer #practice-text { min-height: 118px; }
+.from-installer .practice-shortcut kbd { min-width: 50px; padding: 9px 12px; }
+.from-installer .setup-actions { margin-top: 22px; }
+.from-installer .setup-ready .setup-actions { justify-content: flex-end; }
+@media (max-width: 780px) {
+  .onboarding.from-installer { grid-template-columns: 190px minmax(0, 1fr); }
+  .setup-rail { padding-inline: 22px; }
+  .from-installer .setup-main { padding-inline: 24px; }
+}
 @media (prefers-reduced-motion: no-preference) {
   .setup-content { animation: setup-enter 260ms ease-out both; }
   .setup-welcome .setup-logo { animation: logo-enter 650ms cubic-bezier(.2,.7,.2,1) both; }

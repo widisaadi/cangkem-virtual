@@ -2,13 +2,16 @@
 
 ## First-time setup
 
-Open Cawal after installation and select **Get started**. Add your Groq API key,
+The interactive installer opens **Connect Groq** automatically after installing.
+Add your Groq API key,
 choose a shortcut, and try dictation in the practice area. **Get a Groq API key**
 opens the official key page in your browser. You log in to Groq yourself.
 
 Practice is optional: select **Skip for now** or **Continue** to move on.
-Unfinished setup resumes at the saved step. Existing users with a stored key
-go directly to Settings after updating.
+Unfinished setup resumes at the saved step. After reinstalling or updating,
+existing users can review their masked saved key, shortcut, and optional practice
+in the setup window. This review does not reset their saved onboarding completion.
+Opening Cawal normally still goes directly to Settings for existing users.
 
 ## Dictation
 

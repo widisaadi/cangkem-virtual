@@ -72,6 +72,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="titlebar">
       <div className="brand"><Logo /><div><span className="brand-name">Cawal</span><span className="brand-tagline">Cangkem Virtual</span></div></div>
+      {state?.setupFromInstaller && <span className="setup-titlebar-label">/ Setup</span>}
       <div className="window-buttons"><button aria-label="Minimize Cawal" onClick={() => void api.window('minimize')}><MinusIcon /></button><button aria-label="Close to tray" onClick={() => void api.window('hide')}><Cross2Icon /></button></div>
     </header>
     {state && state.onboarding !== 'complete' ? <Onboarding state={state} /> : <div className="workspace">

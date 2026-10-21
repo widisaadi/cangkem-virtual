@@ -191,7 +191,7 @@ internal sealed class SetupWindow : Window
     <Border Background='#1C2122' BorderBrush='#303739' BorderThickness='0,0,1,0'>
      <Grid Margin='27,32'>
       <Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/><RowDefinition Height='Auto'/></Grid.RowDefinitions>
-      <StackPanel><Image x:Name='Logo' Width='78' Height='78' HorizontalAlignment='Left' Margin='0,0,0,22'/>
+      <StackPanel><Image x:Name='Logo' Width='82' Height='48' Stretch='Uniform' HorizontalAlignment='Left' Margin='0,0,0,26'/>
        <TextBlock Text='Less typing.' FontSize='23' FontWeight='SemiBold' LineHeight='31'/>
        <TextBlock Text='More flow.' FontSize='23' FontWeight='SemiBold' LineHeight='31' Foreground='#FFDD33'/>
        <TextBlock Text='Your Windows voice companion.' FontSize='12' Foreground='#A9B3B6' Margin='0,17,0,0' LineHeight='21'/>
@@ -237,7 +237,7 @@ internal sealed class SetupWindow : Window
        </Grid>
        <StackPanel x:Name='Complete' Visibility='Collapsed'>
         <Border Background='#222829' BorderBrush='#3E484B' BorderThickness='1' CornerRadius='12' Padding='20'>
-         <StackPanel><TextBlock Text='Ready when you are.' FontSize='17' FontWeight='SemiBold'/><TextBlock Text='Open Cawal to start dictating. Existing settings are right where you left them.' Foreground='#A9B3B6' FontSize='12' Margin='0,10,0,0' LineHeight='21'/></StackPanel>
+         <StackPanel><TextBlock Text='Next, make it yours.' FontSize='17' FontWeight='SemiBold'/><TextBlock Text='Connect Groq, choose your shortcut, and try dictation. Your existing API key and preferences are preserved.' Foreground='#A9B3B6' FontSize='12' Margin='0,10,0,0' LineHeight='21'/></StackPanel>
         </Border>
        </StackPanel>
       </Grid>
@@ -275,7 +275,16 @@ internal sealed class SetupWindow : Window
         directory.Text = target;
         using (var stream = Installer.Resource("setup.logo"))
         {
-            var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit(); logo.Source = image;
+            var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit();
+            // The source logo has generous transparent margins. Trim those at
+            // render time so the visible mark aligns with the text beneath it.
+            var pixels = new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
+            int stride = pixels.PixelWidth * 4;
+            var bytes = new byte[stride * pixels.PixelHeight]; pixels.CopyPixels(bytes, stride, 0);
+            int left = pixels.PixelWidth, top = pixels.PixelHeight, right = 0, bottom = 0;
+            for (int y = 0; y < pixels.PixelHeight; y++) for (int x = 0; x < pixels.PixelWidth; x++)
+                if (bytes[y * stride + x * 4 + 3] > 40) { left = Math.Min(left, x); top = Math.Min(top, y); right = Math.Max(right, x); bottom = Math.Max(bottom, y); }
+            logo.Source = left < right && top < bottom ? new CroppedBitmap(image, new Int32Rect(left, top, right - left + 1, bottom - top + 1)) : (BitmapSource)image;
         }
         primary.Click += async (sender, args) => await Next();
         back.Click += (sender, args) => { if (!installing) SetPage(0); };
@@ -307,9 +316,9 @@ internal sealed class SetupWindow : Window
         eyebrow.Text = next == 0 ? "WELCOME TO CAWAL" : next == 1 ? "MAKE YOURSELF AT HOME" : next == 2 ? "SETTING THINGS UP" : "ALL SET";
         heading.Text = next == 0 ? "Pake Cangkem Virtual ,\nBuild Aplikasi 2.5x Lebih Cepat" : next == 1 ? "Choose your space." : next == 2 ? "Making room for your voice." : "Cawal is installed.";
         if (next == 0) heading.FontSize = 25; else heading.FontSize = 29;
-        description.Text = next == 0 ? "Less typing. More creating. Let your voice do the work." : next == 1 ? "Install Cawal for your Windows account." : next == 2 ? "Installing Cawal " + version + ". Your preferences will be preserved." : "Your voice companion is ready to go.";
-        primary.Content = next == 0 ? "Get started" : next == 1 ? "Install Cawal" : next == 2 ? "Installing…" : "Launch Cawal";
-        footer.Text = next == 0 ? "1 / 3   Welcome" : next == 1 ? "2 / 3   Installation" : next == 2 ? "Please wait" : "3 / 3   Ready";
+        description.Text = next == 0 ? "Less typing. More creating. Let your voice do the work." : next == 1 ? "Install Cawal for your Windows account." : next == 2 ? "Installing Cawal " + version + ". Your preferences will be preserved." : "Continue to your Groq API key and dictation setup.";
+        primary.Content = next == 0 ? "Get started" : next == 1 ? "Install Cawal" : next == 2 ? "Installing…" : "Continue setup";
+        footer.Text = next == 0 ? "Welcome" : next == 1 ? "Install, then connect Groq" : next == 2 ? "Next: Groq API key" : "Next: Groq API key";
         Animate();
     }
 
@@ -319,8 +328,7 @@ internal sealed class SetupWindow : Window
         if (page == 0) { SetPage(1); directory.Focus(); return; }
         if (page == 3)
         {
-            try { Process.Start(new ProcessStartInfo(Path.Combine(installDirectory, "Cawal.exe"), "--show") { UseShellExecute = true }); Close(); }
-            catch (Exception ex) { error.Text = "Cawal could not open: " + ex.Message; }
+            LaunchSetup();
             return;
         }
         try
@@ -330,10 +338,16 @@ internal sealed class SetupWindow : Window
             installing = true; SetPage(2);
             int code = await Task.Run(() => Installer.Install(installDirectory));
             if (code != 0) throw new InvalidOperationException("Setup returned code " + code + ". Close Cawal and try again, or choose a folder you can write to.");
-            installing = false; SetPage(3); primary.Focus();
+            installing = false; SetPage(3); LaunchSetup();
         }
         catch (Exception ex) { installing = false; SetPage(1); error.Text = ex.Message; }
         finally { Installer.Cleanup(); }
+    }
+
+    void LaunchSetup()
+    {
+        try { Process.Start(new ProcessStartInfo(Path.Combine(installDirectory, "Cawal.exe"), "--show --setup-after-install") { UseShellExecute = true }); Close(); }
+        catch (Exception ex) { error.Text = "Setup could not open: " + ex.Message + " Select Continue setup to try again."; }
     }
 
     void Browse()

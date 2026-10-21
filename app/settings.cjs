@@ -23,15 +23,19 @@ function createSettings(directory, crypto) {
     fs.renameSync(temporary, file);
     data = next;
   };
+  const validateOnboarding = step => {
+    if (!steps.includes(step)) throw new Error('Invalid setup step.');
+    if (['shortcut', 'trial', 'ready', 'complete'].includes(step) && !data.key) throw new Error('Save your Groq API key first.');
+  };
   return {
     get warning() { return warning; },
     read: () => ({ ...data.settings }),
     write: (settings) => { persist({ ...data, settings: validateSettings(settings) }); },
     hasKey: () => Boolean(data.key),
     onboarding: () => data.onboarding,
+    validateOnboarding,
     setOnboarding: step => {
-      if (!steps.includes(step)) throw new Error('Invalid setup step.');
-      if (['shortcut', 'trial', 'ready', 'complete'].includes(step) && !data.key) throw new Error('Save your Groq API key first.');
+      validateOnboarding(step);
       persist({ ...data, onboarding: step });
     },
     getKey: () => {

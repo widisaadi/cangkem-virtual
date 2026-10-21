@@ -6,6 +6,7 @@ export type Phase = 'idle' | 'preparing' | 'recording' | 'stopping' | 'transcrib
 export type OnboardingStep = 'welcome' | 'connect' | 'shortcut' | 'trial' | 'ready' | 'complete';
 export type Snapshot = {
   onboarding: OnboardingStep;
+  setupFromInstaller: boolean;
   phase: Phase; error: string; warning: string; canRetry: boolean;
   settings: Settings; hasKey: boolean; shortcutError: string; shortcutCapturing: boolean; storageWarning: string; microphoneIssue: boolean;
   startupRegistered: boolean | null; startupError: string;

@@ -8,6 +8,7 @@ const { createSession } = require('./session.cjs');
 const { validateSettings, validateKey, HOTKEYS } = require('./config.cjs');
 const { electronAccelerator } = require('./shortcuts.cjs');
 const { createStartup } = require('./startup.cjs');
+const { createSetupFlow } = require('./setup-flow.cjs');
 
 app.setName('Cawal');
 app.setPath('userData', path.join(app.getPath('appData'), 'Cawal'));
@@ -33,6 +34,7 @@ let recordingId = null;
 let microphoneIssue = false;
 let startup;
 let startupError = '';
+let setupFlow;
 const groq = createGroq(smoke ? async url => {
   if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'aja bobad bol ira jaga mulutnya' });
   if (url.endsWith('/chat/completions')) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Aja bobad, bol. Ira jaga mulutnya.' } }] });
@@ -47,7 +49,7 @@ function showMain() {
 function snapshot() {
   let startupRegistered = null;
   try { startupRegistered = startup?.read() ?? null; } catch { startupError = 'Windows startup status could not be read. Try toggling Start with Windows again.'; }
-  return { ...dictation.snapshot(), onboarding: store.onboarding(), settings: store.read(), hasKey: store.hasKey(), shortcutError, shortcutCapturing, storageWarning: store.warning, microphoneIssue, startupRegistered, startupError };
+  return { ...dictation.snapshot(), onboarding: setupFlow.step(), setupFromInstaller: setupFlow.fromInstaller(), settings: store.read(), hasKey: store.hasKey(), shortcutError, shortcutCapturing, storageWarning: store.warning, microphoneIssue, startupRegistered, startupError };
 }
 function broadcast() {
   const value = snapshot();
@@ -111,7 +113,7 @@ function handle(name, callback, mainOnly = true) {
 }
 function createWindow(isOverlay = false) {
   const window = new BrowserWindow({
-    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 88 : 960, height: isOverlay ? 56 : 760,
+    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 88 : setupFlow.fromInstaller() ? 850 : 960, height: isOverlay ? 56 : setupFlow.fromInstaller() ? 620 : 760,
     minWidth: isOverlay ? 88 : 740, minHeight: isOverlay ? 56 : 560,
     show: false, frame: false, resizable: !isOverlay, maximizable: !isOverlay,
     fullscreenable: false, transparent: isOverlay, backgroundColor: isOverlay ? '#00000000' : '#171a1b',
@@ -127,7 +129,12 @@ function createWindow(isOverlay = false) {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', (_event, argv) => { if (!argv.includes('--hidden') && mainWindow) showMain(); });
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes('--setup-after-install') && setupFlow && !dictation.busy()) {
+      setupFlow.start(); mainWindow.setSize(850, 620); broadcast();
+    }
+    if (!argv.includes('--hidden') && mainWindow) showMain();
+  });
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
@@ -136,6 +143,8 @@ else {
     session.defaultSession.setPermissionCheckHandler((contents, permission, _origin, details) =>
       contents === mainWindow?.webContents && permission === 'media' && details.mediaType === 'audio');
     store = createSettings(app.getPath('userData'), safeStorage);
+    setupFlow = createSetupFlow(store);
+    if (process.argv.includes('--setup-after-install')) setupFlow.start();
     startup = createStartup(app, { enabled: app.isPackaged && !smoke });
     try { startup.sync(store.read().autoStart); } catch (error) { startupError = error.message; }
     mainWindow = createWindow(); overlay = createWindow(true);
@@ -143,7 +152,7 @@ else {
       overlayDisplayId = screen.getDisplayNearestPoint(screen.screenToDipPoint(point)).id;
     } });
     dictation = createSession({ groq, store, ...paste,
-      captureTarget: () => store.onboarding() === 'trial' && mainWindow.isFocused() ? { onboarding: true } : paste.captureTarget(),
+      captureTarget: () => setupFlow.step() === 'trial' && mainWindow.isFocused() ? { onboarding: true } : paste.captureTarget(),
       deliver: (text, target) => target?.onboarding ? Promise.resolve({ pasted: true, copied: false, message: 'Practice complete.' }) : paste.deliver(text, target),
       emit: updateState, command: value => {
       recordingId = value.type === 'start' ? value.id : null;
@@ -160,7 +169,7 @@ else {
       screen.on(event, () => { if (dictation.busy() && overlay.isVisible()) positionOverlay(); });
     }
     // First launch needs setup; configured launches quietly wait in the tray.
-    if (!smoke) mainWindow.once('ready-to-show', () => { if (store.onboarding() !== 'complete' || !store.hasKey() || store.warning || shortcutError || startupError || process.argv.includes('--show')) showMain(); });
+    if (!smoke) mainWindow.once('ready-to-show', () => { if (setupFlow.fromInstaller() || setupFlow.step() !== 'complete' || !store.hasKey() || store.warning || shortcutError || startupError || process.argv.includes('--show')) showMain(); });
     tray = new Tray(nativeImage.createFromPath(imagePath).resize({ width: 32, height: 32 }));
     tray.setToolTip('Cawal · Ready to dictate');
     tray.setContextMenu(Menu.buildFromTemplate([
@@ -181,7 +190,9 @@ else {
     handle('onboarding', step => {
       if (dictation.busy()) throw new Error('Finish dictation before continuing.');
       endShortcutCapture();
-      store.setOnboarding(step); dictation.clear(); broadcast(); return snapshot();
+      setupFlow.move(step);
+      if (step === 'complete') mainWindow.setSize(960, 760);
+      dictation.clear(); broadcast(); return snapshot();
     });
     handle('shortcut-capture', enabled => {
       if (typeof enabled !== 'boolean') throw new Error('Invalid shortcut request.');
@@ -244,7 +255,7 @@ else {
       if (microphoneIssue) showMain();
     });
     handle('audio', (id, buffer, mime) => dictation.audio(id, buffer, mime));
-    if (smoke) require('../scripts/smoke.cjs').run({ app, mainWindow, overlay, dictation, store, clipboard });
+    if (smoke) require('../scripts/smoke.cjs').run({ app, mainWindow, overlay, dictation, store, clipboard, setupFlow, broadcast });
   }).catch(error => { dialog.showErrorBox('Cawal could not start', error.message); app.exit(1); });
 }
 app.on('activate', () => mainWindow && showMain());
