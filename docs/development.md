@@ -40,6 +40,16 @@ with other windows while they run.
 Windows installers are written to `dist/releases/`. The build does not download
 local transcription models. Installers are unsigned unless signing is configured.
 
+`build:win` produces a branded `Cawal-Setup-<version>.exe` in
+`dist/releases/<version>/`. Its WPF interface embeds the NSIS installation engine;
+the engine handles upgrades, uninstall registration, and Windows shortcuts.
+Ship the **Setup** executable to users. The engine executable is a build component.
+
+Run `npm run test:installer` after building to render all installer screens and
+check navigation and folder validation without installing the application.
+The installer also supports `/S /D=<absolute folder>` for silent installation.
+Existing application settings and onboarding completion are preserved.
+
 ## Implementation details
 
 Settings and encrypted keys use a Cawal-specific data directory, separate from

@@ -22,6 +22,7 @@
     "createStartMenuShortcut": true,
     "shortcutName": "Cawal",
     "license": "LICENSE",
-    "deleteAppDataOnUninstall": false
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": false
   }
 }
