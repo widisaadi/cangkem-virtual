@@ -30,7 +30,7 @@ export function createRecorder(api: CawalAPI, onLevel: (value: number) => void) 
       if (token !== id) { media.getTracks().forEach(track => track.stop()); return; }
       stream = media;
       const format = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type));
-      if (!format) throw new Error('Format rekaman tidak tersedia. Mulai ulang Cawal.');
+      if (!format) throw new Error('Recording format is unavailable. Restart Cawal.');
       const current = new MediaRecorder(media, { mimeType: format, audioBitsPerSecond: 64000 });
       recorder = current;
       const chunks: Blob[] = [];
@@ -53,23 +53,23 @@ export function createRecorder(api: CawalAPI, onLevel: (value: number) => void) 
         if (totalBytes > 23 * 1024 * 1024 && current.state === 'recording') current.stop();
       };
       current.onerror = () => {
-        if (token === id) { cancel(); void api.recordingFailed(id, 'Mikrofon gagal merekam. Periksa perangkat dan coba lagi.'); }
+        if (token === id) { cancel(); void api.recordingFailed(id, 'Microphone recording failed. Choose another microphone or use the default.', 'unavailable'); }
       };
       media.getAudioTracks().forEach(track => { track.onended = () => {
-        if (token === id) { cancel(); void api.recordingFailed(id, 'Mikrofon terputus. Hubungkan kembali lalu coba lagi.'); }
+        if (token === id) { cancel(); void api.recordingFailed(id, 'Microphone disconnected. Reconnect it or use the default, then record again.', 'disconnected'); }
       }; });
       current.onstop = async () => {
         if (token !== id) return;
         release(); recorder = null;
         if (peak < 0.003) {
-          token = null; void api.recordingFailed(id, 'Suara belum terdeteksi. Periksa mikrofon dan coba bicara lebih dekat.'); return;
+          token = null; void api.recordingFailed(id, 'No speech detected. Check your microphone and try speaking closer.'); return;
         }
         try {
           const data = await new Blob(chunks, { type: format }).arrayBuffer();
           if (token !== id) return;
           await api.audio(id, data, format.split(';')[0]);
         } catch {
-          if (token === id) void api.recordingFailed(id, 'Rekaman tidak dapat diproses. Coba rekam ulang.');
+          if (token === id) void api.recordingFailed(id, 'Recording could not be processed. Try recording again.');
         } finally { if (token === id) token = null; }
       };
       current.start(1000);
@@ -79,11 +79,12 @@ export function createRecorder(api: CawalAPI, onLevel: (value: number) => void) 
       if (token !== id) return;
       cancel();
       const name = (error as Error).name;
-      const message = name === 'NotAllowedError' ? 'Izin mikrofon ditolak. Aktifkan akses mikrofon untuk aplikasi desktop di Pengaturan Windows.'
-        : name === 'NotFoundError' || name === 'OverconstrainedError' ? 'Mikrofon tidak ditemukan. Pilih mikrofon lain di Pengaturan.'
-        : name === 'NotReadableError' ? 'Mikrofon sedang tidak dapat digunakan. Tutup aplikasi yang menguncinya lalu coba lagi.'
-        : 'Rekaman belum dapat dimulai. Periksa mikrofon dan coba lagi.';
-      void api.recordingFailed(id, message);
+      const message = name === 'NotAllowedError' ? 'Microphone permission denied. Enable desktop microphone access in Windows Settings.'
+        : name === 'NotFoundError' || name === 'OverconstrainedError' ? 'Microphone not found. Choose another microphone in Settings.'
+        : name === 'NotReadableError' ? 'Microphone is unavailable. Close any app using it and try again.'
+        : 'Recording could not start. Check your microphone and try again.';
+      const reason = name === 'NotFoundError' || name === 'OverconstrainedError' ? 'missing' : name === 'NotReadableError' ? 'unavailable' : 'other';
+      void api.recordingFailed(id, message, reason);
     }
   }
   return {

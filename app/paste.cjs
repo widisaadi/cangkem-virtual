@@ -29,12 +29,12 @@ function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {} })
     },
     async deliver(text, target) {
       clipboard.writeText(text);
-      if (!target) return { pasted: false, copied: true, message: 'Tersalin. Tekan Ctrl+V di aplikasi tujuan.' };
+      if (!target) return { pasted: false, copied: true, message: 'Copied. Press Ctrl+V in the target app.' };
       try {
         await run(binary, ['paste', target.handle, target.pid], { windowsHide: true, timeout: 5000 });
-        return { pasted: true, copied: true, message: 'Dikirim ke aplikasi tujuan. Hasil juga tersedia di clipboard.' };
+        return { pasted: true, copied: true, message: 'Pasted into the target app. The result is also on your clipboard.' };
       } catch {
-        return { pasted: false, copied: true, message: 'Paste otomatis belum berhasil. Tekan Ctrl+V di aplikasi tujuan.' };
+        return { pasted: false, copied: true, message: 'Automatic paste failed. Press Ctrl+V in the target app.' };
       }
     },
   };

@@ -7,6 +7,8 @@ const subscribe = (name, listener) => {
 };
 contextBridge.exposeInMainWorld('cawal', {
   bootstrap: () => invoke('bootstrap'),
+  onboarding: step => invoke('onboarding', step),
+  openGroqKeys: () => invoke('open-groq-keys'),
   saveSettings: settings => invoke('settings', settings),
   captureShortcut: enabled => invoke('shortcut-capture', enabled),
   saveKey: key => invoke('save-key', key),
@@ -18,7 +20,7 @@ contextBridge.exposeInMainWorld('cawal', {
   recordingStarted: id => invoke('recording-started', id),
   audioLevel: (id, level) => ipcRenderer.send('cawal:audio-level', id, level),
   onAudioLevel: listener => subscribe('audio-level', listener),
-  recordingFailed: (id, message) => invoke('recording-failed', id, message),
+  recordingFailed: (id, message, reason) => invoke('recording-failed', id, message, reason),
   audio: (id, data, mime) => invoke('audio', id, data, mime),
   onState: listener => subscribe('state', listener),
   onCommand: listener => subscribe('command', listener),

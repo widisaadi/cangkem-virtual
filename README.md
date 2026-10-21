@@ -4,13 +4,20 @@
 
 # Cawal — Cangkem Virtual
 
+Versi 1.6.0 menghadirkan UI pengaturan baru berbahasa Inggris, onboarding
+pertama kali, dan indikator API key tersimpan berupa titik-titik tanpa tombol
+untuk menampilkan key. Onboarding meliputi koneksi Groq, pemilihan shortcut,
+dan latihan dictation yang dapat dilewati. Pengguna lama tidak perlu mengulangnya.
+
+[Download installer Windows v1.6.0](https://github.com/widisaadi/cangkem-virtual/releases/download/v1.6.0/Cawal-Setup-1.6.0.exe)
+
 Dictation sederhana untuk Windows. Tampilan Quiet Graphite dengan aksen
 `#ffdd33` dan logo line art mulut berbicara. Hanya Groq.
-Jendela desktop khusus pengaturan **Umum** dan **Koneksi**; dictation lewat shortcut.
+Jendela desktop khusus pengaturan **General** dan **Connection**; dictation lewat shortcut.
 
 Tekan shortcut yang tertera di Cawal (bawaan **Ctrl + Shift + Spasi**), bicara,
-lalu tekan lagi. Shortcut dapat diganti lewat **Umum → Shortcut dictation → Ubah**:
-tekan kombinasi pilihanmu lalu **Simpan**. Jika shortcut bawaan dipakai aplikasi
+lalu tekan lagi. Shortcut dapat diganti lewat **General → Dictation shortcut → Edit shortcut**:
+tekan kombinasi pilihanmu lalu **Save**. Jika shortcut bawaan dipakai aplikasi
 lain, Cawal memilih kombinasi alternatif. Shortcut kustom yang bentrok akan
 menampilkan pesan agar kamu memilih kombinasi lain. Cawal mentranskripsikan
 suara dan menempelkan hasil ke aplikasi yang aktif saat rekaman dimulai.
@@ -23,11 +30,24 @@ suara dan menempelkan hasil ke aplikasi yang aktif saat rekaman dimulai.
   Prompt khusus merapikan kalimat, tanda baca, tanda petik untuk ucapan langsung,
   dan paragraf saat topik berubah. Dictation singkat tetap satu paragraf;
   gaya santai, sisipan Inggris, nama, angka, dan maksud ucapan dipertahankan.
+  Pertanyaan langsung memakai tanda tanya; pernyataan dan instruksi selesai
+  memakai titik. Klausa sambungan memakai koma sesuai struktur kalimat.
+  Qwen hanya membaca transkrip, bukan audio, sehingga intonasi yang ambigu
+  tidak bisa dipastikan dari teks saja. Kalimat terpotong tidak dilengkapi AI.
 - Satu API key Groq, tersimpan terenkripsi menggunakan perlindungan Windows.
-- Bahasa utama Indonesia, dengan konteks ejaan untuk sisipan Inggris seperti About,
-  update, settings, dan feedback. AI mempertahankan campuran bahasa dan gaya bicara.
+- Konteks ejaan untuk Qwen, Muse, Flow, Omni Flash, Grok, dan Groq, termasuk
+  nomor versi dan ukuran parameter yang diucapkan. Nama tidak ditukar hanya
+  berdasarkan bunyi yang mirip. Tidak ada menu kamus atau pembaruan kosakata otomatis.
+- Indonesia + Inggris sebagai bawaan. Pilihan Cirebon di dropdown Bahasa menambahkan
+  deteksi bahasa otomatis dengan konteks Cirebon, Indonesia, dan Inggris.
+  Kosakata pribadi mencakup ira, bobad, kirik-kirikiin, moregan bae, mengkono tah,
+  dan bol. Qwen mempertahankan dialek, sapaan, kata ganti, dan campuran bahasa.
+  Bol dipahami sebagai sapaan seperti bro, tetapi tetap ditulis bol.
 - Mikrofon, shortcut kustom, dan mulai bersama Windows.
 - Indikator rekaman kecil, salin ulang saat paste gagal, dan coba ulang saat error.
+- Jika mikrofon terputus atau tidak tersedia, rekaman dihentikan, wave ditutup,
+  dan jendela pengaturan menawarkan Gunakan mikrofon default atau pilih perangkat
+  lain. Mulai rekaman baru lewat shortcut setelah perangkat siap.
 
 Tidak ada akun Cawal, langganan aplikasi, meeting, notes, chat, agent, upload,
 provider lain, model lokal, sinkronisasi, telemetry, atau updater OpenWhispr.
@@ -35,15 +55,28 @@ Biaya dan batas penggunaan API mengikuti akun Groq milik pengguna.
 
 ## Pakai
 
-1. Pasang `Cawal-Setup-1.4.2.exe` dari folder `dist/releases/1.4.2`.
-2. Buka Koneksi, simpan API key Groq, lalu pilih Tes koneksi.
-3. Pilih mikrofon di Umum bila perlu. Letakkan kursor pada kolom teks aplikasi tujuan.
+1. Pasang `Cawal-Setup-1.6.0.exe` dari [GitHub Releases](https://github.com/widisaadi/cangkem-virtual/releases/tag/v1.6.0).
+2. Saat pertama dibuka, pilih **Get started**, masukkan API key Groq, lalu **Save & continue**.
+   Tautan **Get a Groq API key** membuka halaman key resmi Groq di browser.
+3. Pilih shortcut dan coba dictation di area latihan, atau pilih **Skip for now**.
+   Pengguna lama langsung masuk Settings; key dan preferensi tetap tersimpan.
+   Pilih mikrofon di **General** bila perlu. Letakkan kursor pada kolom teks aplikasi tujuan.
 4. Tekan shortcut untuk mulai dan selesai bicara.
+5. Opsional: di dropdown **Language**, pilih **Cirebon**. Pilihan bawaan **Indonesia**.
+   Konteks campuran bahasa tetap dipertahankan; label pilihan dibuat ringkas.
+
+Di **Connection**, key tersimpan ditandai titik-titik, tanpa menampilkan key asli.
+Ketik key baru dan pilih **Save** untuk menggantinya. Gunakan **Test connection**
+untuk menguji koneksi atau **Remove key** untuk menghapus key.
 
 Setelah API key tersimpan, pembukaan berikutnya langsung berjalan di background.
 Tombol minimize dan tutup menyembunyikan Cawal ke tray. Klik dua kali ikon tray
-untuk membuka pengaturan; pilih Keluar pada menu tray untuk berhenti sepenuhnya.
-Aktifkan “Mulai bersama Windows” jika ingin Cawal mulai bersama Windows.
+untuk membuka pengaturan; pilih **Quit** pada menu tray untuk berhenti sepenuhnya.
+Aktifkan **Start with Windows** jika ingin Cawal mulai bersama Windows.
+Pendaftaran memakai lokasi executable terpasang dan argumen --hidden, lalu
+dibaca kembali dari Windows. Setiap aplikasi dibuka, preferensi startup disinkronkan
+lagi untuk memperbaiki entri yang hilang setelah update installer. Jika Windows
+menolak pendaftaran, aplikasi menampilkan error. Status switch mengikuti entri Windows.
 
 Tekan shortcut dari aplikasi mana pun: ikon gelombang kecil (88 × 56 piksel)
 muncul di bawah monitor aplikasi tempat kamu mengetik, meskipun pointer mouse
@@ -56,10 +89,13 @@ menghilang setelah selesai. Pesan pemulihan saat paste gagal atau error tersedia
 di jendela pengaturan. Tidak ada dashboard atau panel transkrip.
 Mikrofon hanya aktif selama rekaman, bukan selama Cawal menunggu di background.
 Rekaman dibatasi lima menit dan 24 MB. Internet diperlukan.
-Bahasa Indonesia aktif otomatis, termasuk untuk pengaturan dari versi lama.
-Contoh hasil yang dituju: “Buka halaman About, lalu update settings-nya.”
-Kata Indonesia seperti “tentang” tetap Indonesia. Tidak ada penggantian kata
-otomatis berbasis kamus. Akurasi campuran bahasa tetap bergantung pada audio
+Mode bawaan memakai konteks Indonesia + Inggris dan kode bahasa Indonesia.
+Saat Bahasa Cirebon aktif, Whisper mendeteksi bahasa secara otomatis dan Qwen
+memakai prompt pribadi Cirebon. Contoh gaya:
+“Kita pengennya sih ke sini, tapi ira-nya ke sana.” dan “Aja bobad, bol.”
+Kata kita, ira, dan bol tidak diganti ke saya, Anda, atau bro.
+Tidak ada penggantian kata otomatis berbasis kamus atau pelatihan model baru.
+Akurasi dialek dan campuran bahasa tetap bergantung pada audio
 dan model; perapihan AI tidak dapat memulihkan ucapan yang hilang dari transkrip.
 Konteks transkripsi mengikuti [panduan prompting Groq](https://console.groq.com/docs/speech-to-text#prompting-guidelines).
 Jika AI gagal, teks asli Whisper tetap digunakan. Jika transkripsi gagal,

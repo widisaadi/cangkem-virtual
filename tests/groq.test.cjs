@@ -10,26 +10,42 @@ test('only the two Whisper models and supported settings can be saved', () => {
   assert.equal(validateSettings({}).model, 'whisper-large-v3-turbo');
   assert.throws(() => validateKey('not-a-key'));
 });
-test('audio requests use Groq transcription with Indonesian and English spelling context', async () => {
+test('audio requests detect mixed Cirebon speech with personal spelling context', async () => {
   let captured;
   const groq = createGroq(async (url, options) => { captured = { url, options }; return Response.json({ text: '  Halo dunia.  ' }); });
-  assert.equal(await groq.transcribe(new Uint8Array([1, 2]), 'audio/webm', 'secret', { ...DEFAULT_SETTINGS, language: 'id' }), 'Halo dunia.');
+  assert.equal(await groq.transcribe(new Uint8Array([1, 2]), 'audio/webm', 'secret', { ...DEFAULT_SETTINGS, cirebon: true }), 'Halo dunia.');
   assert.equal(captured.url, 'https://api.groq.com/openai/v1/audio/transcriptions');
   assert.equal(captured.options.redirect, 'error');
   assert.equal(captured.options.body.get('model'), 'whisper-large-v3-turbo');
-  assert.equal(captured.options.body.get('language'), 'id');
+  assert.equal(captured.options.body.has('language'), false);
+  assert.match(captured.options.body.get('prompt'), /bahasa Cirebon/);
   assert.match(captured.options.body.get('prompt'), /bahasa Indonesia.*bahasa Inggris/);
   assert.match(captured.options.body.get('prompt'), /About.*settings-nya/);
   assert.equal(captured.options.body.get('file').name, 'dictation.webm');
 });
-test('Indonesian is enforced even for legacy callers; invalid audio never reaches Groq', async () => {
+test('default Indonesian-English mode ignores legacy language values and rejects invalid audio', async () => {
   let calls = 0;
-  const groq = createGroq(async (_url, options) => { calls++; assert.equal(options.body.get('language'), 'id'); return Response.json({ text: 'Buka halaman About.' }); });
+  const groq = createGroq(async (_url, options) => { calls++; assert.equal(options.body.get('language'), 'id'); assert.doesNotMatch(options.body.get('prompt'), /Cirebon/); return Response.json({ text: 'Buka halaman About.' }); });
   await groq.transcribe(new Uint8Array([1]), 'audio/ogg', 'key', { ...DEFAULT_SETTINGS, language: 'auto' });
   await assert.rejects(groq.transcribe(new Uint8Array(0), 'audio/webm', 'key', DEFAULT_SETTINGS));
   await assert.rejects(groq.transcribe(new Uint8Array(MAX_AUDIO_BYTES + 1), 'audio/webm', 'key', DEFAULT_SETTINGS));
   await assert.rejects(groq.transcribe(new Uint8Array([1]), 'text/html', 'key', DEFAULT_SETTINGS));
   assert.equal(calls, 1);
+});
+
+test('personal Cirebon cleanup context is sent only when explicitly enabled', async () => {
+  const prompts = [];
+  const groq = createGroq(async (_url, options) => {
+    prompts.push(JSON.parse(options.body).messages[0].content);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Oke bol.' } }] });
+  });
+  await groq.cleanup('oke bol', 'key');
+  await groq.cleanup('oke bol', 'key', undefined, { ...DEFAULT_SETTINGS, cirebon: true });
+  await groq.cleanup('oke bol', 'key', undefined, DEFAULT_SETTINGS);
+  assert.doesNotMatch(prompts[0], /Cirebon|bobad/);
+  assert.match(prompts[1], /Cirebon/);
+  assert.match(prompts[1], /bol with bro/);
+  assert.equal(prompts[2], prompts[0]);
 });
 test('mixed-language transcripts reach cleanup unchanged and are returned without dictionary replacements', async () => {
   const transcript = 'Buka About, update settings-nya. Tentang hal-hal tadi, please follow up besok.';
@@ -75,10 +91,10 @@ test('empty or truncated AI output is rejected', async () => {
 });
 test('rate limit errors are helpful and never expose the response or API key', async () => {
   const groq = createGroq(async () => new Response('private provider message', { status: 429 }));
-  await assert.rejects(groq.cleanup('Hi', 'secret'), error => /Batas penggunaan/.test(error.message) && !/secret|private/.test(error.message));
+  await assert.rejects(groq.cleanup('Hi', 'secret'), error => /usage limit/.test(error.message) && !/secret|private/.test(error.message));
 });
 test('connection check requires Qwen only when cleanup is enabled', async () => {
   const groq = createGroq(async () => Response.json({ data: [{ id: DEFAULT_SETTINGS.model }] }));
   await assert.rejects(groq.test('key', DEFAULT_SETTINGS), /Qwen/);
-  assert.match(await groq.test('key', { ...DEFAULT_SETTINGS, cleanup: false }), /Terhubung/);
+  assert.match(await groq.test('key', { ...DEFAULT_SETTINGS, cleanup: false }), /Connected/);
 });

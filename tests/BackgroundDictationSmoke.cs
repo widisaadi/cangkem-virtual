@@ -38,7 +38,7 @@ class BackgroundDictationSmoke {
                 if (!input.Focused) { Console.WriteLine("FAIL: Test text field lost keyboard focus."); timer.Stop(); form.Close(); return; }
                 Shortcut();
             }
-            if (ticks > 13 && input.Text == "Halo, ini pengujian Cawal.") {
+            if (ticks > 13 && input.Text == "Aja bobad, bol. Ira jaga mulutnya.") {
                 Console.WriteLine("PASS: Native global shortcut started and stopped hidden dictation; overlay preserved focus and text pasted into the original target.");
                 result = 0; timer.Stop(); form.Close();
             }

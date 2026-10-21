@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen, safeStorage, clipboard, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen, safeStorage, clipboard, session, dialog, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createSettings } = require('./settings.cjs');
@@ -7,6 +7,7 @@ const { createPaste } = require('./paste.cjs');
 const { createSession } = require('./session.cjs');
 const { validateSettings, validateKey, HOTKEYS } = require('./config.cjs');
 const { electronAccelerator } = require('./shortcuts.cjs');
+const { createStartup } = require('./startup.cjs');
 
 app.setName('Cawal');
 app.setPath('userData', path.join(app.getPath('appData'), 'Cawal'));
@@ -29,9 +30,12 @@ let shortcutCapturing = false;
 let captureTimer;
 let overlayDisplayId = null;
 let recordingId = null;
+let microphoneIssue = false;
+let startup;
+let startupError = '';
 const groq = createGroq(smoke ? async url => {
-  if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'halo ini pengujian cawal' });
-  if (url.endsWith('/chat/completions')) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Halo, ini pengujian Cawal.' } }] });
+  if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'aja bobad bol ira jaga mulutnya' });
+  if (url.endsWith('/chat/completions')) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Aja bobad, bol. Ira jaga mulutnya.' } }] });
   return Response.json({ data: [{ id: 'whisper-large-v3-turbo' }, { id: 'qwen/qwen3.8-27b' }] });
 } : undefined);
 const imagePath = path.join(__dirname, '..', 'resources', 'icon.png');
@@ -41,7 +45,9 @@ function showMain() {
   mainWindow.show(); mainWindow.focus();
 }
 function snapshot() {
-  return { ...dictation.snapshot(), settings: store.read(), hasKey: store.hasKey(), shortcutError, shortcutCapturing, storageWarning: store.warning };
+  let startupRegistered = null;
+  try { startupRegistered = startup?.read() ?? null; } catch { startupError = 'Windows startup status could not be read. Try toggling Start with Windows again.'; }
+  return { ...dictation.snapshot(), onboarding: store.onboarding(), settings: store.read(), hasKey: store.hasKey(), shortcutError, shortcutCapturing, storageWarning: store.warning, microphoneIssue, startupRegistered, startupError };
 }
 function broadcast() {
   const value = snapshot();
@@ -53,6 +59,7 @@ function positionOverlay() {
   overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - 88) / 2), y: workArea.y + workArea.height - 78, width: 88, height: 56 });
 }
 function updateState(state) {
+  if (state.phase === 'preparing' || state.phase === 'idle') microphoneIssue = false;
   broadcast();
   const busy = dictation.busy();
   if (busy && !escapeRegistered) escapeRegistered = globalShortcut.register('Escape', () => dictation.cancel());
@@ -65,7 +72,7 @@ function updateState(state) {
     overlay.showInactive();
     overlay.moveTop();
   } else overlay.hide();
-  if (tray) tray.setToolTip(`Cawal · ${state.phase === 'recording' ? 'Mendengarkan' : busy ? 'Memproses' : 'Siap dictation'}`);
+  if (tray) tray.setToolTip(`Cawal · ${state.phase === 'recording' ? 'Listening' : busy ? 'Processing' : 'Ready to dictate'}`);
 }
 function toggle(paste = false) {
   if (shortcutCapturing) return;
@@ -79,7 +86,7 @@ function toggle(paste = false) {
 function registerShortcut(next) {
   const old = store.read().hotkey;
   if (old === next && globalShortcut.isRegistered(electronAccelerator(next))) return;
-  if (!globalShortcut.register(electronAccelerator(next), () => toggle(true))) throw new Error('Shortcut sedang dipakai aplikasi lain. Pilih kombinasi lain.');
+  if (!globalShortcut.register(electronAccelerator(next), () => toggle(true))) throw new Error('This shortcut is used by another app. Choose another combination.');
   if (old !== next) globalShortcut.unregister(electronAccelerator(old));
   shortcutError = '';
 }
@@ -92,22 +99,22 @@ function endShortcutCapture() {
 }
 function guard(event, mainOnly = false) {
   const allowed = mainOnly ? [mainWindow] : [mainWindow, overlay];
-  if (!allowed.some(window => window && event.sender === window.webContents)) throw new Error('Permintaan tidak diizinkan.');
-  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Frame tidak diizinkan.');
+  if (!allowed.some(window => window && event.sender === window.webContents)) throw new Error('Request not allowed.');
+  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Frame not allowed.');
 }
 function handle(name, callback, mainOnly = true) {
   ipcMain.handle(`cawal:${name}`, async (event, ...args) => {
     guard(event, mainOnly);
     try { return { ok: true, value: await callback(...args) }; }
-    catch (error) { return { ok: false, error: error.message || 'Permintaan gagal.' }; }
+    catch (error) { return { ok: false, error: error.message || 'Request failed.' }; }
   });
 }
 function createWindow(isOverlay = false) {
   const window = new BrowserWindow({
-    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 88 : 820, height: isOverlay ? 56 : 620,
+    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 88 : 960, height: isOverlay ? 56 : 760,
     minWidth: isOverlay ? 88 : 740, minHeight: isOverlay ? 56 : 560,
     show: false, frame: false, resizable: !isOverlay, maximizable: !isOverlay,
-    fullscreenable: false, transparent: isOverlay, backgroundColor: isOverlay ? '#00000000' : '#262a2b',
+    fullscreenable: false, transparent: isOverlay, backgroundColor: isOverlay ? '#00000000' : '#171a1b',
     skipTaskbar: isOverlay, alwaysOnTop: isOverlay, focusable: !isOverlay,
     icon: imagePath, autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required', webSecurity: true, devTools: !app.isPackaged },
@@ -120,7 +127,7 @@ function createWindow(isOverlay = false) {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => mainWindow && showMain());
+  app.on('second-instance', (_event, argv) => { if (!argv.includes('--hidden') && mainWindow) showMain(); });
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
@@ -129,11 +136,16 @@ else {
     session.defaultSession.setPermissionCheckHandler((contents, permission, _origin, details) =>
       contents === mainWindow?.webContents && permission === 'media' && details.mediaType === 'audio');
     store = createSettings(app.getPath('userData'), safeStorage);
+    startup = createStartup(app, { enabled: app.isPackaged && !smoke });
+    try { startup.sync(store.read().autoStart); } catch (error) { startupError = error.message; }
     mainWindow = createWindow(); overlay = createWindow(true);
     const paste = createPaste({ app, clipboard, ownWindows: () => BrowserWindow.getAllWindows(), onTargetDisplay: point => {
       overlayDisplayId = screen.getDisplayNearestPoint(screen.screenToDipPoint(point)).id;
     } });
-    dictation = createSession({ groq, store, ...paste, emit: updateState, command: value => {
+    dictation = createSession({ groq, store, ...paste,
+      captureTarget: () => store.onboarding() === 'trial' && mainWindow.isFocused() ? { onboarding: true } : paste.captureTarget(),
+      deliver: (text, target) => target?.onboarding ? Promise.resolve({ pasted: true, copied: false, message: 'Practice complete.' }) : paste.deliver(text, target),
+      emit: updateState, command: value => {
       recordingId = value.type === 'start' ? value.id : null;
       mainWindow.webContents.send('cawal:command', value);
     } });
@@ -148,12 +160,12 @@ else {
       screen.on(event, () => { if (dictation.busy() && overlay.isVisible()) positionOverlay(); });
     }
     // First launch needs setup; configured launches quietly wait in the tray.
-    if (!smoke) mainWindow.once('ready-to-show', () => { if (!store.hasKey() || store.warning || shortcutError || process.argv.includes('--show')) showMain(); });
+    if (!smoke) mainWindow.once('ready-to-show', () => { if (store.onboarding() !== 'complete' || !store.hasKey() || store.warning || shortcutError || startupError || process.argv.includes('--show')) showMain(); });
     tray = new Tray(nativeImage.createFromPath(imagePath).resize({ width: 32, height: 32 }));
-    tray.setToolTip('Cawal · Siap dictation');
+    tray.setToolTip('Cawal · Ready to dictate');
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Buka Cawal', click: showMain }, { type: 'separator' },
-      { label: 'Keluar', click: () => app.quit() },
+      { label: 'Open Cawal', click: showMain }, { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() },
     ]));
     tray.on('double-click', showMain);
     const preferredHotkey = store.read().hotkey;
@@ -165,10 +177,16 @@ else {
       } catch (error) { shortcutError = error.message; }
     }
     handle('bootstrap', snapshot, false);
+    handle('open-groq-keys', () => shell.openExternal('https://console.groq.com/keys'));
+    handle('onboarding', step => {
+      if (dictation.busy()) throw new Error('Finish dictation before continuing.');
+      endShortcutCapture();
+      store.setOnboarding(step); dictation.clear(); broadcast(); return snapshot();
+    });
     handle('shortcut-capture', enabled => {
-      if (typeof enabled !== 'boolean') throw new Error('Permintaan shortcut tidak valid.');
+      if (typeof enabled !== 'boolean') throw new Error('Invalid shortcut request.');
       if (!enabled) { endShortcutCapture(); return; }
-      if (dictation.busy()) throw new Error('Selesaikan dictation sebelum merekam shortcut.');
+      if (dictation.busy()) throw new Error('Finish dictation before capturing a shortcut.');
       clearTimeout(captureTimer);
       shortcutCapturing = true;
       globalShortcut.unregister(electronAccelerator(store.read().hotkey));
@@ -176,32 +194,36 @@ else {
       broadcast();
     });
     handle('settings', input => {
-      if (dictation.busy()) throw new Error('Selesaikan dictation sebelum mengubah pengaturan.');
+      if (dictation.busy()) throw new Error('Finish dictation before changing settings.');
       const next = validateSettings(input);
       const old = store.read();
       endShortcutCapture();
       registerShortcut(next.hotkey);
       try {
+        startup.sync(next.autoStart);
         store.write(next);
-        app.setLoginItemSettings({ openAtLogin: next.autoStart, args: ['--hidden'] });
+        startupError = '';
       } catch (error) {
         if (next.hotkey !== old.hotkey) {
           globalShortcut.unregister(electronAccelerator(next.hotkey));
           globalShortcut.register(electronAccelerator(old.hotkey), () => toggle(true));
         }
+        try { startup.sync(old.autoStart); } catch { /* Preserve the actionable original failure. */ }
+        startupError = error.message;
         store.write(old); throw error;
       }
+      if (microphoneIssue && old.microphone !== next.microphone) dictation.clear();
       broadcast(); return snapshot();
     });
     handle('save-key', key => { store.saveKey(key); broadcast(); return true; });
-    handle('remove-key', () => { if (dictation.busy()) throw new Error('Selesaikan dictation terlebih dahulu.'); store.removeKey(); broadcast(); return true; });
+    handle('remove-key', () => { if (dictation.busy()) throw new Error('Finish dictation first.'); store.removeKey(); broadcast(); return true; });
     handle('test-key', key => groq.test(key ? validateKey(key) : store.getKey(), store.read()));
     handle('action', async action => {
       if (action === 'toggle') toggle();
       else if (action === 'cancel') dictation.cancel();
       else if (action === 'retry') await dictation.retry();
       else if (action === 'clear') dictation.clear();
-      else throw new Error('Aksi tidak dikenal.');
+      else throw new Error('Unknown action.');
     }, false);
     handle('copy', () => { const text = dictation.snapshot().result?.text; if (text) clipboard.writeText(text); });
     handle('window', action => {
@@ -215,10 +237,15 @@ else {
       if (id !== recordingId || dictation.snapshot().phase !== 'recording' || typeof level !== 'number' || !Number.isFinite(level)) return;
       if (!overlay.isDestroyed()) overlay.webContents.send('cawal:audio-level', Math.max(0, Math.min(1, level)));
     });
-    handle('recording-failed', (id, message) => dictation.recordingFailed(id, String(message).slice(0, 300)));
+    handle('recording-failed', (id, message, reason) => {
+      if (id !== recordingId || !['preparing', 'recording', 'stopping'].includes(dictation.snapshot().phase)) return;
+      microphoneIssue = ['disconnected', 'missing', 'unavailable'].includes(reason);
+      dictation.recordingFailed(id, String(message).slice(0, 300));
+      if (microphoneIssue) showMain();
+    });
     handle('audio', (id, buffer, mime) => dictation.audio(id, buffer, mime));
     if (smoke) require('../scripts/smoke.cjs').run({ app, mainWindow, overlay, dictation, store, clipboard });
-  }).catch(error => { dialog.showErrorBox('Cawal tidak dapat dibuka', error.message); app.exit(1); });
+  }).catch(error => { dialog.showErrorBox('Cawal could not start', error.message); app.exit(1); });
 }
 app.on('activate', () => mainWindow && showMain());
 app.on('before-quit', () => { quitting = true; dictation?.cancel(); });

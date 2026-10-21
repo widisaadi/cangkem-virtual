@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createSession } = require('../app/session.cjs');
 const { DEFAULT_SETTINGS } = require('../app/config.cjs');
+const { createGroq } = require('../app/groq.cjs');
 function setup(overrides = {}) {
   const commands = []; const deliveries = [];
   const session = createSession({
@@ -21,6 +22,21 @@ test('dictation transcribes, cleans, delivers to captured window and finishes', 
   assert.equal(session.snapshot().phase, 'done');
   assert.equal(session.snapshot().result.raw, 'halo dunia');
   assert.deepEqual(deliveries, [{ text: 'Halo dunia.', target: { handle: '123', pid: '999' } }]);
+});
+
+test('personal mixed Cirebon wording survives transcription, cleanup and paste unchanged', async () => {
+  const raw = 'kita pengennya sih ke sini tapi ira nya ke sana aja bobad bol update settings nya besok';
+  const text = 'Kita pengennya sih ke sini, tapi ira-nya ke sana. Aja bobad, bol.\n\nUpdate settings-nya besok.';
+  const groq = createGroq(async (url, options) => {
+    if (url.endsWith('/audio/transcriptions')) return Response.json({ text: raw });
+    assert.equal(JSON.parse(options.body).messages[1].content, raw);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: text } }] });
+  });
+  const { session, deliveries, record } = setup({ groq, store: { read: () => ({ ...DEFAULT_SETTINGS, cirebon: true, language: 'auto' }), getKey: () => 'key' } });
+  await session.audio(await record(), new ArrayBuffer(2), 'audio/webm');
+  assert.equal(session.snapshot().result.raw, raw);
+  assert.equal(deliveries[0].text, text);
+  assert.equal(session.snapshot().result.pasted, true);
 });
 test('AI failure still delivers original Whisper transcript', async () => {
   const { session, deliveries, record } = setup({ groq: { transcribe: async () => 'raw words', cleanup: async () => { throw new Error('Qwen unavailable'); } } });

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+resources/bin/
+.env*
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.codex/
+.agents/
+.claude/
+test-results/

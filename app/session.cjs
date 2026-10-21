@@ -31,17 +31,17 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
       let warning = '';
       if (input.settings.cleanup) {
         publish({ phase: 'cleaning' });
-        try { text = await groq.cleanup(raw, key, signal); }
+        try { text = await groq.cleanup(raw, key, signal, input.settings); }
         catch (error) {
           if (signal.aborted) return;
-          warning = `AI tidak berhasil merapikan teks. Hasil Whisper tetap tersedia. ${error.message}`;
+          warning = `AI polishing failed. The original Whisper text is still available. ${error.message}`;
         }
       }
       if (!current(id)) return;
       publish({ phase: 'pasting' });
       let delivery;
       try { delivery = await deliver(text, target); }
-      catch { delivery = { pasted: false, copied: false, message: 'Paste dan salin otomatis gagal. Salin hasil dari Cawal.' }; }
+      catch { delivery = { pasted: false, copied: false, message: 'Automatic paste and copy failed. Copy the result from Cawal.' }; }
       if (!current(id)) return;
       pending = null; active = null;
       publish({ phase: 'done', warning, error: '', canRetry: false,
@@ -68,7 +68,7 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
       command({ type: 'start', id, microphone: settings.microphone });
       startTimer = setTimeout(() => {
         if (current(id) && state.phase === 'preparing') {
-          command({ type: 'cancel', id }); fail('Mikrofon belum siap. Periksa izin mikrofon Windows.');
+          command({ type: 'cancel', id }); fail('Microphone is not ready. Check Windows microphone permissions.');
         }
       }, 20000);
     },
@@ -78,7 +78,7 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
       publish({ phase: 'stopping' }); command({ type: 'stop', id });
       stopTimer = setTimeout(() => {
         if (current(id) && state.phase === 'stopping') {
-          command({ type: 'cancel', id }); fail('Rekaman tidak dapat diselesaikan. Coba rekam ulang.');
+          command({ type: 'cancel', id }); fail('Recording could not finish. Try recording again.');
         }
       }, 10000);
     },
@@ -109,7 +109,7 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
       if (!current(id) || !['recording', 'stopping'].includes(state.phase)) return;
       clearTimeout(startTimer); clearTimeout(stopTimer);
       if (!(buffer instanceof ArrayBuffer) || !buffer.byteLength || buffer.byteLength > MAX_AUDIO_BYTES || !AUDIO_TYPES.includes(mime)) {
-        fail('Rekaman tidak valid atau terlalu besar. Maksimum 24 MB.'); return;
+        fail('Recording is invalid or too large. Maximum 24 MB.'); return;
       }
       pending = { bytes: new Uint8Array(buffer), mime, settings: active.settings };
       await run(id);
