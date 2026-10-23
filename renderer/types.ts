@@ -8,7 +8,7 @@ export type Snapshot = {
   onboarding: OnboardingStep;
   setupFromInstaller: boolean;
   phase: Phase; error: string; warning: string; canRetry: boolean;
-  settings: Settings; hasKey: boolean; shortcutError: string; shortcutCapturing: boolean; storageWarning: string; microphoneIssue: boolean;
+  settings: Settings; hasKey: boolean; shortcutError: string; shortcutCapturing: boolean; storageWarning: string; microphoneIssue: boolean; targetIcon?: string | null;
   startupRegistered: boolean | null; startupError: string;
   result: null | { id: string; text: string; raw: string; cleaned: boolean; time: number; pasted: boolean; copied: boolean; message: string };
 };

@@ -3,7 +3,7 @@ const api = window.cawal;
 export default function FlowLine({ active }: { active: boolean }) {
   const path = useRef<SVGPathElement>(null);
   useEffect(() => {
-    const flat = 'M2 16 L94 16';
+    const flat = 'M2 14 L62 14';
     path.current?.setAttribute('d', flat);
     if (!active || !api) return;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -25,9 +25,9 @@ export default function FlowLine({ active }: { active: boolean }) {
       if (level < .001) path.current?.setAttribute('d', flat);
       else {
         const points: string[] = [];
-        for (let x = 2; x <= 94; x++) {
-          const envelope = Math.pow(Math.sin((x - 2) * Math.PI / 92), 1.6);
-          const y = 16 + level * 12 * envelope * Math.sin((x - 2) * .17 - phase);
+        for (let x = 2; x <= 62; x++) {
+          const envelope = Math.pow(Math.sin((x - 2) * Math.PI / 60), 1.6);
+          const y = 14 + level * 11 * envelope * Math.sin((x - 2) * .22 - phase);
           points.push(`${x === 2 ? 'M' : 'L'}${x} ${y.toFixed(3)}`);
         }
         path.current?.setAttribute('d', points.join(' '));
@@ -37,12 +37,12 @@ export default function FlowLine({ active }: { active: boolean }) {
     frame = requestAnimationFrame(draw);
     return () => { unsubscribe(); cancelAnimationFrame(frame); path.current?.setAttribute('d', flat); };
   }, [active]);
-  return <svg className="live-wave" width="96" height="32" viewBox="0 0 96 32" aria-hidden="true">
-    <defs><linearGradient id="wave-fade" gradientUnits="userSpaceOnUse" x1="2" x2="94" y1="0" y2="0">
+  return <svg className="live-wave" width="64" height="28" viewBox="0 0 64 28" aria-hidden="true">
+    <defs><linearGradient id="wave-fade" gradientUnits="userSpaceOnUse" x1="2" x2="62" y1="0" y2="0">
       <stop offset="0" stopColor="var(--accent)" stopOpacity=".15" /><stop offset=".5" stopColor="var(--accent)" />
       <stop offset="1" stopColor="var(--accent)" stopOpacity=".15" />
     </linearGradient></defs>
-    <path className="wave-track" d="M2 16 L94 16" />
-    <path ref={path} className="wave-line" d="M2 16 L94 16" />
+    <path className="wave-track" d="M2 14 L62 14" />
+    <path ref={path} className="wave-line" d="M2 14 L62 14" />
   </svg>;
 }

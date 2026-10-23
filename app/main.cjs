@@ -31,6 +31,7 @@ let shortcutError = '';
 let shortcutCapturing = false;
 let captureTimer;
 let overlayDisplayId = null;
+let targetIcon = null;
 let recordingId = null;
 let microphoneIssue = false;
 let startup;
@@ -50,7 +51,7 @@ function showMain() {
 function snapshot() {
   let startupRegistered = null;
   try { startupRegistered = startup?.read() ?? null; } catch { startupError = 'Windows startup status could not be read. Try toggling Start with Windows again.'; }
-  return { ...dictation.snapshot(), onboarding: setupFlow.step(), setupFromInstaller: setupFlow.fromInstaller(), settings: store.read(), hasKey: store.hasKey(), shortcutError, shortcutCapturing, storageWarning: store.warning, microphoneIssue, startupRegistered, startupError };
+  return { ...dictation.snapshot(), onboarding: setupFlow.step(), setupFromInstaller: setupFlow.fromInstaller(), settings: store.read(), hasKey: store.hasKey(), shortcutError, shortcutCapturing, storageWarning: store.warning, microphoneIssue, startupRegistered, startupError, targetIcon };
 }
 function broadcast() {
   const value = snapshot();
@@ -59,7 +60,7 @@ function broadcast() {
 function positionOverlay() {
   const { workArea } = screen.getAllDisplays().find(display => display.id === overlayDisplayId)
     || screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - 160) / 2), y: workArea.y + workArea.height - 82, width: 160, height: 64 });
+  overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - 176) / 2), y: workArea.y + workArea.height - 76, width: 176, height: 56 });
 }
 function updateState(state) {
   if (state.phase === 'preparing' || state.phase === 'idle') microphoneIssue = false;
@@ -67,7 +68,7 @@ function updateState(state) {
   const busy = dictation.busy();
   if (busy && !escapeRegistered) escapeRegistered = globalShortcut.register('Escape', () => dictation.cancel());
   if (!busy && escapeRegistered) { globalShortcut.unregister('Escape'); escapeRegistered = false; }
-  if (state.phase === 'preparing') { overlayDisplayId = null; overlay.hide(); }
+  if (state.phase === 'preparing') { overlayDisplayId = null; targetIcon = null; overlay.hide(); }
   else if (busy) {
     // Capture the target monitor first, then show without taking keyboard focus.
     positionOverlay();
@@ -119,8 +120,8 @@ function handle(name, callback, mainOnly = true) {
 }
 function createWindow(isOverlay = false) {
   const window = new BrowserWindow({
-    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 160 : setupFlow.fromInstaller() ? 850 : 960, height: isOverlay ? 64 : setupFlow.fromInstaller() ? 620 : 760,
-    minWidth: isOverlay ? 160 : 740, minHeight: isOverlay ? 64 : 560,
+    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 176 : setupFlow.fromInstaller() ? 850 : 960, height: isOverlay ? 56 : setupFlow.fromInstaller() ? 620 : 760,
+    minWidth: isOverlay ? 176 : 740, minHeight: isOverlay ? 56 : 560,
     show: false, frame: false, resizable: !isOverlay, maximizable: !isOverlay,
     fullscreenable: false, transparent: isOverlay, backgroundColor: isOverlay ? '#00000000' : '#171a1b',
     skipTaskbar: isOverlay, alwaysOnTop: isOverlay, focusable: !isOverlay,
@@ -156,6 +157,12 @@ else {
     mainWindow = createWindow(); overlay = createWindow(true);
     const paste = createPaste({ app, clipboard, ownWindows: () => BrowserWindow.getAllWindows(), onTargetDisplay: point => {
       overlayDisplayId = screen.getDisplayNearestPoint(screen.screenToDipPoint(point)).id;
+    }, onTargetApp: image => {
+      // Show the icon of the app that will receive the text (Edge, Chrome, ChatGPT…).
+      app.getFileIcon(image, { size: 'normal' }).then(icon => {
+        if (icon.isEmpty() || !dictation.busy()) return;
+        targetIcon = icon.toDataURL(); broadcast();
+      }).catch(() => {});
     } });
     maskMenu = paste.maskMenu;
     dictation = createSession({ groq, store, ...paste,

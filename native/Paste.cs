@@ -23,6 +23,16 @@ class Paste {
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint first, uint second, bool attach);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder value, int size);
     [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder path, ref uint size);
+    static string ImagePath(uint pid) {
+        // Limited query access also works for most elevated processes.
+        IntPtr process = OpenProcess(0x1000, false, pid);
+        if (process == IntPtr.Zero) return null;
+        try { var path = new StringBuilder(1024); uint size = 1024; return QueryFullProcessImageName(process, 0, path, ref size) ? path.ToString() : null; }
+        finally { CloseHandle(process); }
+    }
     [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, INPUT[] inputs, int size);
     [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public UNION data; }
     [StructLayout(LayoutKind.Explicit)] struct UNION {
@@ -76,6 +86,8 @@ class Paste {
                 if (GetMonitorInfo(MonitorFromWindow(window, 2), ref info)) {
                     Console.WriteLine("DISPLAY " + (info.monitor.left + (info.monitor.right - info.monitor.left) / 2) + " " + (info.monitor.top + (info.monitor.bottom - info.monitor.top) / 2));
                 }
+                string image = ImagePath(pid);
+                if (image != null) Console.WriteLine("PATH " + image);
                 return 0;
             }
             if (args.Length == 1 && args[0] == "mask") {

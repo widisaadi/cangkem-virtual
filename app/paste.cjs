@@ -3,21 +3,22 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const run = promisify(execFile);
 function parseCapture(stdout) {
-  const [windowLine, displayLine] = stdout.trim().split(/\r?\n/);
+  const [windowLine, ...rest] = stdout.trim().split(/\r?\n/);
   const match = windowLine.match(/^([0-9A-F]+) (\d+) (.+)$/i);
   if (!match) return null;
   const [, handle, pid, name] = match;
-  const display = displayLine?.match(/^DISPLAY (-?\d+) (-?\d+)$/);
-  return { handle, pid, name, displayPoint: display ? { x: Number(display[1]), y: Number(display[2]) } : null };
+  const display = rest.map(line => line.match(/^DISPLAY (-?\d+) (-?\d+)$/)).find(Boolean);
+  const image = rest.find(line => line.startsWith('PATH '))?.slice(5) || null;
+  return { handle, pid, name, image, displayPoint: display ? { x: Number(display[1]), y: Number(display[2]) } : null };
 }
-function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {} }) {
+function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {}, onTargetApp = () => {} }) {
   const binary = path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', 'resources'), 'bin', 'cawal-paste.exe');
   return {
     async captureTarget() {
       const { stdout } = await run(binary, ['capture'], { windowsHide: true, timeout: 4000 });
       const captured = parseCapture(stdout);
       if (!captured) return null;
-      const { handle, pid, name, displayPoint } = captured;
+      const { handle, pid, name, image, displayPoint } = captured;
       if (displayPoint) onTargetDisplay(displayPoint);
       const value = BigInt(`0x${handle}`);
       if (Number(pid) === process.pid || /^(cawal|electron)$/i.test(name)) return null;
@@ -25,6 +26,7 @@ function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {} })
         const bytes = window.getNativeWindowHandle();
         return (bytes.length >= 8 ? bytes.readBigUInt64LE() : BigInt(bytes.readUInt32LE())) === value;
       })) return null;
+      if (image) onTargetApp(image);
       return { handle, pid };
     },
     maskMenu() {

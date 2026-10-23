@@ -5,7 +5,7 @@ import Onboarding from './Onboarding';
 import { createRecorder } from './recorder';
 import { unwrap, busyPhases, labels, type Snapshot, type Settings } from './types';
 import ShortcutEditor from './ShortcutEditor';
-import FlowLine from './FlowLine';
+import RecordingPill from './RecordingPill';
 import logo from '../resources/brand.png';
 
 const api = window.cawal;
@@ -45,7 +45,7 @@ export default function App() {
     update(); navigator.mediaDevices.addEventListener('devicechange', update);
     return () => navigator.mediaDevices.removeEventListener('devicechange', update);
   }, [tab, state?.phase]);
-  if (isOverlay) return state ? <div className={`overlay-body ${state.phase === 'recording' ? 'is-recording' : 'is-processing'}`} role="img" aria-label={labels[state.phase]}><span className="live-dot" /><FlowLine active={state.phase === 'recording'} /></div> : null;
+  if (isOverlay) return state ? <RecordingPill state={state} /> : null;
   if (!api) return <div className="desktop-required"><Logo /><h1>Cawal</h1><p>Open the Cawal desktop app to configure dictation.</p></div>;
   const busy = state ? busyPhases.includes(state.phase) : false;
   const disabled = busy || working;
