@@ -60,7 +60,7 @@ function broadcast() {
 function positionOverlay() {
   const { workArea } = screen.getAllDisplays().find(display => display.id === overlayDisplayId)
     || screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - 176) / 2), y: workArea.y + workArea.height - 76, width: 176, height: 56 });
+  overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - 192) / 2), y: workArea.y + workArea.height - 76, width: 192, height: 56 });
 }
 function updateState(state) {
   if (state.phase === 'preparing' || state.phase === 'idle') microphoneIssue = false;
@@ -120,8 +120,8 @@ function handle(name, callback, mainOnly = true) {
 }
 function createWindow(isOverlay = false) {
   const window = new BrowserWindow({
-    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 176 : setupFlow.fromInstaller() ? 850 : 960, height: isOverlay ? 56 : setupFlow.fromInstaller() ? 620 : 760,
-    minWidth: isOverlay ? 176 : 740, minHeight: isOverlay ? 56 : 560,
+    title: 'Cawal — Cangkem Virtual', width: isOverlay ? 192 : setupFlow.fromInstaller() ? 850 : 960, height: isOverlay ? 56 : setupFlow.fromInstaller() ? 620 : 760,
+    minWidth: isOverlay ? 192 : 740, minHeight: isOverlay ? 56 : 560,
     show: false, frame: false, resizable: !isOverlay, maximizable: !isOverlay,
     fullscreenable: false, transparent: isOverlay, backgroundColor: isOverlay ? '#00000000' : '#171a1b',
     skipTaskbar: isOverlay, alwaysOnTop: isOverlay, focusable: !isOverlay,

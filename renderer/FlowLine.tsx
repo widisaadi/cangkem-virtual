@@ -1,18 +1,18 @@
 import { useEffect, useRef } from 'react';
 const api = window.cawal;
-export default function FlowLine({ active }: { active: boolean }) {
+const W = 80, MID = 14, FLAT = `M2 ${MID} L${W - 2} ${MID}`;
+export default function FlowLine({ active, processing = false }: { active: boolean; processing?: boolean }) {
   const path = useRef<SVGPathElement>(null);
   useEffect(() => {
-    const flat = 'M2 14 L62 14';
-    path.current?.setAttribute('d', flat);
-    if (!active || !api) return;
+    path.current?.setAttribute('d', FLAT);
+    if ((!active && !processing) || !api) return;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     let target = 0, level = 0, phase = 0, frame = 0;
     let lastFrame = performance.now(), lastSample = lastFrame;
-    const unsubscribe = api.onAudioLevel(value => {
+    const unsubscribe = active ? api.onAudioLevel(value => {
       target = Math.max(0, (value - .008) / .992);
       lastSample = performance.now();
-    });
+    }) : () => {};
     const draw = (now: number) => {
       const dt = Math.min(.05, (now - lastFrame) / 1000);
       lastFrame = now;
@@ -21,13 +21,18 @@ export default function FlowLine({ active }: { active: boolean }) {
       if (now - lastSample > 240) target = 0;
       const tau = target > level ? .055 : .17;
       level += (target - level) * (1 - Math.exp(-dt / tau));
-      if (!reduced.matches) phase = (phase + dt * level * 5) % (2 * Math.PI);
-      if (level < .001) path.current?.setAttribute('d', flat);
+      // The wave keeps drifting gently even in silence, faster while speaking.
+      if (!reduced.matches) phase = (phase + dt * (3.6 + level * 15)) % (2 * Math.PI);
+      // While transcribing, a small ripple travels along the line.
+      const ripple = processing && !reduced.matches ? ((now / 900) % 1) * (W + 30) - 15 : null;
+      if (ripple === null && level < .001) path.current?.setAttribute('d', FLAT);
       else {
         const points: string[] = [];
-        for (let x = 2; x <= 62; x++) {
-          const envelope = Math.pow(Math.sin((x - 2) * Math.PI / 60), 1.6);
-          const y = 14 + level * 11 * envelope * Math.sin((x - 2) * .22 - phase);
+        for (let x = 2; x <= W - 2; x++) {
+          const envelope = Math.pow(Math.sin((x - 2) * Math.PI / (W - 4)), 1.6);
+          const y = ripple === null
+            ? MID + level * 11 * envelope * Math.sin((x - 2) * .17 - phase)
+            : MID + 2.2 * Math.exp(-((x - ripple) ** 2) / 60) * Math.sin(x * .5 - phase * 2);
           points.push(`${x === 2 ? 'M' : 'L'}${x} ${y.toFixed(3)}`);
         }
         path.current?.setAttribute('d', points.join(' '));
@@ -35,14 +40,9 @@ export default function FlowLine({ active }: { active: boolean }) {
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
-    return () => { unsubscribe(); cancelAnimationFrame(frame); path.current?.setAttribute('d', flat); };
-  }, [active]);
-  return <svg className="live-wave" width="64" height="28" viewBox="0 0 64 28" aria-hidden="true">
-    <defs><linearGradient id="wave-fade" gradientUnits="userSpaceOnUse" x1="2" x2="62" y1="0" y2="0">
-      <stop offset="0" stopColor="var(--accent)" stopOpacity=".15" /><stop offset=".5" stopColor="var(--accent)" />
-      <stop offset="1" stopColor="var(--accent)" stopOpacity=".15" />
-    </linearGradient></defs>
-    <path className="wave-track" d="M2 14 L62 14" />
-    <path ref={path} className="wave-line" d="M2 14 L62 14" />
+    return () => { unsubscribe(); cancelAnimationFrame(frame); path.current?.setAttribute('d', FLAT); };
+  }, [active, processing]);
+  return <svg className="live-wave" width={W} height="28" viewBox={`0 0 ${W} 28`} aria-hidden="true">
+    <path ref={path} className="wave-line" d={FLAT} />
   </svg>;
 }
