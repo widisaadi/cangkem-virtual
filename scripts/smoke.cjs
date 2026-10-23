@@ -124,11 +124,11 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     await until(() => dictation.snapshot().phase === 'recording', 'microphone recording');
     assert.equal(overlay.isVisible(), true);
     await delay(1200);
-    await until(() => overlay.webContents.executeJavaScript('document.querySelector(".live-wave path").getBBox().height > 2'), 'Flow Line responds to microphone input');
+    await until(() => overlay.webContents.executeJavaScript('document.querySelector(".live-wave .wave-line").getBBox().height > 2'), 'Flow Line responds to microphone input');
     fs.writeFileSync(path.join(output, 'cawal-flow-line.png'), (await overlay.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })).toPNG());
     await js('window.cawal.action("toggle")');
     await until(() => dictation.snapshot().phase === 'done', 'transcription and cleanup');
-    await until(() => overlay.webContents.executeJavaScript('document.querySelector(".live-wave path").getAttribute("d") === "M2 16 L62 16"'), 'Flow Line resets after recording');
+    await until(() => overlay.webContents.executeJavaScript('document.querySelector(".live-wave .wave-line").getAttribute("d") === "M2 16 L94 16"'), 'Flow Line resets after recording');
     assert.equal(dictation.snapshot().result.text, 'Aja bobad, bol. Ira jaga mulutnya.');
     assert.equal(dictation.snapshot().result.pasted, false);
     assert.equal(clipboard.readText(), 'Aja bobad, bol. Ira jaga mulutnya.');
@@ -198,11 +198,11 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     assert.equal(overlay.isAlwaysOnTop(), true);
     console.log(`PASS: Overlay on target monitor; ${screen.getAllDisplays().length} displays, pointer and target differ: ${pointerDisplay.id !== targetDisplay.id}.`);
     await until(() => overlayJs('window.testLevels.filter(value => value > 0).length > 5'), 'real microphone levels reach overlay');
-    assert.equal(await overlayJs('document.querySelectorAll(".live-wave path").length'), 1);
-    assert.equal(await overlayJs('getComputedStyle(document.querySelector(".live-wave path")).stroke'), 'rgb(255, 221, 51)');
+    assert.equal(await overlayJs('document.querySelectorAll(".live-wave .wave-line").length'), 1);
+    assert.equal(await overlayJs('getComputedStyle(document.querySelector(".live-wave .wave-line")).stroke'), 'url("#wave-fade")', 'recording wave uses the yellow fade gradient');
     assert.equal(await overlayJs('document.body.innerText.trim()'), '', 'icon overlay contains no visible text');
     assert.equal(await overlayJs('document.querySelectorAll("button").length'), 0, 'icon overlay contains no controls');
-    assert.deepEqual(overlay.getSize(), [88, 56]);
+    assert.deepEqual(overlay.getSize(), [160, 64]);
     assert.equal(await overlayJs('document.documentElement.scrollWidth <= innerWidth'), true);
     const backgroundResult = await backgroundRun;
     if (backgroundResult.error) throw backgroundResult.error;

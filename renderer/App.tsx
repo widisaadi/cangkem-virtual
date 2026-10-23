@@ -45,7 +45,7 @@ export default function App() {
     update(); navigator.mediaDevices.addEventListener('devicechange', update);
     return () => navigator.mediaDevices.removeEventListener('devicechange', update);
   }, [tab, state?.phase]);
-  if (isOverlay) return state ? <div className="overlay-body" role="img" aria-label={labels[state.phase]}><FlowLine active={state.phase === 'recording'} /></div> : null;
+  if (isOverlay) return state ? <div className={`overlay-body ${state.phase === 'recording' ? 'is-recording' : 'is-processing'}`} role="img" aria-label={labels[state.phase]}><span className="live-dot" /><FlowLine active={state.phase === 'recording'} /></div> : null;
   if (!api) return <div className="desktop-required"><Logo /><h1>Cawal</h1><p>Open the Cawal desktop app to configure dictation.</p></div>;
   const busy = state ? busyPhases.includes(state.phase) : false;
   const disabled = busy || working;
