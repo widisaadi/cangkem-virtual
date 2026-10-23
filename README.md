@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/readme-banner.png" alt="Cawal turns spoken words into text on your laptop" width="100%">
+  <img src="resources/readme-banner.gif" alt="Cawal turns spoken words into text on your laptop" width="100%">
 </p>
 
 # <img src="resources/icon.png" width="36" height="36" alt=""> Cawal
