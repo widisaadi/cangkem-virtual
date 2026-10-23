@@ -1,6 +1,6 @@
 export type Settings = {
   model: 'whisper-large-v3-turbo' | 'whisper-large-v3';
-  cleanup: boolean; language: 'id' | 'auto'; cirebon: boolean; microphone: string; hotkey: string; autoStart: boolean;
+  cleanup: boolean; language: 'id'; microphone: string; hotkey: string; autoStart: boolean;
 };
 export type Phase = 'idle' | 'preparing' | 'recording' | 'stopping' | 'transcribing' | 'cleaning' | 'pasting' | 'done' | 'error';
 export type OnboardingStep = 'welcome' | 'connect' | 'shortcut' | 'trial' | 'ready' | 'complete';

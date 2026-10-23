@@ -26,6 +26,7 @@ let mainWindow, overlay, tray, store, dictation;
 let quitting = false;
 let rendererReady = false;
 let escapeRegistered = false;
+let maskMenu = () => {};
 let shortcutError = '';
 let shortcutCapturing = false;
 let captureTimer;
@@ -85,10 +86,15 @@ function toggle(paste = false) {
     void dictation.start({ paste });
   }
 }
+function onShortcut() {
+  // Alt/Win shortcuts must not leave a lone modifier release behind (browser menu, Start).
+  if (/(^|\+)(Alt|Super)\+/.test(store.read().hotkey)) maskMenu();
+  toggle(true);
+}
 function registerShortcut(next) {
   const old = store.read().hotkey;
   if (old === next && globalShortcut.isRegistered(electronAccelerator(next))) return;
-  if (!globalShortcut.register(electronAccelerator(next), () => toggle(true))) throw new Error('This shortcut is used by another app. Choose another combination.');
+  if (!globalShortcut.register(electronAccelerator(next), onShortcut)) throw new Error('This shortcut is used by another app. Choose another combination.');
   if (old !== next) globalShortcut.unregister(electronAccelerator(old));
   shortcutError = '';
 }
@@ -151,6 +157,7 @@ else {
     const paste = createPaste({ app, clipboard, ownWindows: () => BrowserWindow.getAllWindows(), onTargetDisplay: point => {
       overlayDisplayId = screen.getDisplayNearestPoint(screen.screenToDipPoint(point)).id;
     } });
+    maskMenu = paste.maskMenu;
     dictation = createSession({ groq, store, ...paste,
       captureTarget: () => setupFlow.step() === 'trial' && mainWindow.isFocused() ? { onboarding: true } : paste.captureTarget(),
       deliver: (text, target) => target?.onboarding ? Promise.resolve({ pasted: true, copied: false, message: 'Practice complete.' }) : paste.deliver(text, target),
@@ -217,7 +224,7 @@ else {
       } catch (error) {
         if (next.hotkey !== old.hotkey) {
           globalShortcut.unregister(electronAccelerator(next.hotkey));
-          globalShortcut.register(electronAccelerator(old.hotkey), () => toggle(true));
+          globalShortcut.register(electronAccelerator(old.hotkey), onShortcut);
         }
         try { startup.sync(old.autoStart); } catch { /* Preserve the actionable original failure. */ }
         startupError = error.message;

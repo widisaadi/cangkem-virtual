@@ -78,6 +78,15 @@ class Paste {
                 }
                 return 0;
             }
+            if (args.Length == 1 && args[0] == "mask") {
+                // A registered hotkey swallows its key, so releasing Alt or Win
+                // afterwards looks like a lone tap and opens the browser menu or
+                // Start. An unassigned key (VK 0xE8) in between cancels that,
+                // the same "menu mask" AutoHotkey uses. Nothing else receives it.
+                if ((GetAsyncKeyState(0x12) & 0x8000) == 0 && (GetAsyncKeyState(0x5B) & 0x8000) == 0 && (GetAsyncKeyState(0x5C) & 0x8000) == 0) return 0;
+                var mask = new INPUT[] { Key(0xE8,false), Key(0xE8,true) };
+                return SendInput(2, mask, Marshal.SizeOf(typeof(INPUT))) == 2 ? 0 : 5;
+            }
             if (args.Length != 3 || args[0] != "paste") return 2;
             IntPtr target = new IntPtr(Convert.ToInt64(args[1], 16));
             uint expectedPid = UInt32.Parse(args[2]); uint actualPid;

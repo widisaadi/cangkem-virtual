@@ -3,22 +3,21 @@ const { normalizeShortcut } = require('./shortcuts.cjs');
 const CLEANUP_MODEL = 'qwen/qwen3.8-27b';
 const HOTKEYS = ['CommandOrControl+Shift+Space', 'CommandOrControl+Alt+Space', 'Alt+Shift+D'];
 const DEFAULT_SETTINGS = Object.freeze({
-  model: STT_MODELS[0], cleanup: true, language: 'id', cirebon: false,
+  model: STT_MODELS[0], cleanup: true, language: 'id',
   microphone: '', hotkey: HOTKEYS[0], autoStart: false,
 });
 function validateSettings(input) {
   if (!input || typeof input !== 'object') throw new Error('Invalid settings.');
   const result = { ...DEFAULT_SETTINGS };
-  // Language follows the explicit Cirebon option, never a legacy fixed-language value.
+  // Indonesian (with mixed English) is the only preset; legacy language values are ignored.
   for (const key of Object.keys(result)) if (key !== 'language' && Object.hasOwn(input, key)) result[key] = input[key];
   if (!STT_MODELS.includes(result.model)) {
     throw new Error('Unsupported settings option.');
   }
   result.hotkey = normalizeShortcut(result.hotkey);
-  if (typeof result.cleanup !== 'boolean' || typeof result.cirebon !== 'boolean' || typeof result.autoStart !== 'boolean' || typeof result.microphone !== 'string' || result.microphone.length > 512) {
+  if (typeof result.cleanup !== 'boolean' || typeof result.autoStart !== 'boolean' || typeof result.microphone !== 'string' || result.microphone.length > 512) {
     throw new Error('Invalid settings.');
   }
-  result.language = result.cirebon ? 'auto' : 'id';
   return result;
 }
 function validateKey(key) {

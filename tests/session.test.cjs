@@ -24,15 +24,15 @@ test('dictation transcribes, cleans, delivers to captured window and finishes', 
   assert.deepEqual(deliveries, [{ text: 'Halo dunia.', target: { handle: '123', pid: '999' } }]);
 });
 
-test('personal mixed Cirebon wording survives transcription, cleanup and paste unchanged', async () => {
-  const raw = 'kita pengennya sih ke sini tapi ira nya ke sana aja bobad bol update settings nya besok';
-  const text = 'Kita pengennya sih ke sini, tapi ira-nya ke sana. Aja bobad, bol.\n\nUpdate settings-nya besok.';
+test('mixed Indonesian-English wording survives transcription, cleanup and paste unchanged', async () => {
+  const raw = 'kita follow up besok ya terus update settings nya habis meeting';
+  const text = 'Kita follow up besok, ya. Terus update settings-nya habis meeting.';
   const groq = createGroq(async (url, options) => {
     if (url.endsWith('/audio/transcriptions')) return Response.json({ text: raw });
     assert.equal(JSON.parse(options.body).messages[1].content, raw);
     return Response.json({ choices: [{ finish_reason: 'stop', message: { content: text } }] });
   });
-  const { session, deliveries, record } = setup({ groq, store: { read: () => ({ ...DEFAULT_SETTINGS, cirebon: true, language: 'auto' }), getKey: () => 'key' } });
+  const { session, deliveries, record } = setup({ groq, store: { read: () => DEFAULT_SETTINGS, getKey: () => 'key' } });
   await session.audio(await record(), new ArrayBuffer(2), 'audio/webm');
   assert.equal(session.snapshot().result.raw, raw);
   assert.equal(deliveries[0].text, text);

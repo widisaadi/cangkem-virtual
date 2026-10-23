@@ -27,6 +27,9 @@ function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {} })
       })) return null;
       return { handle, pid };
     },
+    maskMenu() {
+      run(binary, ['mask'], { windowsHide: true, timeout: 2000 }).catch(() => {});
+    },
     async deliver(text, target) {
       clipboard.writeText(text);
       if (!target) return { pasted: false, copied: true, message: 'Copied. Press Ctrl+V in the target app.' };

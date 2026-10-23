@@ -32,7 +32,7 @@ test('legacy editions return to default Indonesian-English without losing existi
     fs.writeFileSync(file, JSON.stringify({ settings: { language, model: 'whisper-large-v3', cleanup: false, hotkey: 'Ctrl+Shift+K', microphone: 'chosen-mic' }, key: crypto.encryptString(KEY).toString('base64') }));
     const store = createSettings(dir, crypto);
     assert.equal(store.read().language, 'id');
-    assert.equal(store.read().cirebon, false);
+    assert.equal(store.read().cirebon, undefined);
     assert.equal(store.read().model, 'whisper-large-v3');
     assert.equal(store.read().cleanup, false);
     assert.equal(store.read().hotkey, 'CommandOrControl+Shift+K');
@@ -44,20 +44,6 @@ test('legacy editions return to default Indonesian-English without losing existi
   }
 });
 
-test('Cirebon opt-in persists across restart and can be disabled independently', t => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cawal-cirebon-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const store = createSettings(dir, crypto);
-  store.saveKey(KEY);
-  store.write({ ...store.read(), cirebon: true });
-  const reopened = createSettings(dir, crypto);
-  assert.equal(reopened.read().cirebon, true);
-  assert.equal(reopened.read().language, 'auto');
-  reopened.write({ ...reopened.read(), cirebon: false });
-  assert.equal(reopened.read().language, 'id');
-  assert.equal(reopened.getKey(), KEY);
-  assert.throws(() => reopened.write({ ...reopened.read(), cirebon: 'true' }));
-});
 test('corrupt settings surface a warning without exposing stored content', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cawal-settings-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

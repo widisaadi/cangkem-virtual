@@ -36,8 +36,7 @@ possibly outdated target window.
 
 - **Microphone:** select an input device or use the Windows default.
 - **Speech model:** Whisper V3 Turbo (default) or Whisper V3, hosted by Groq.
-- **Language:** Indonesia (default) or Cirebon. These are presets; mixed English
-  wording is supported. Cirebon enables automatic language detection with dialect context.
+- **Language:** Indonesian, with mixed English wording and AI/tech terms supported.
 - **Polish with AI:** use Qwen 3.8 to clean punctuation and paragraph breaks.
   If polishing fails, the original Whisper transcript is used.
 - **Start with Windows:** launch Cawal in the background when you sign in.

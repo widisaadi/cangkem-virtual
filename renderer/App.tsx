@@ -103,7 +103,7 @@ export default function App() {
             </section>
             <section className="settings-group preferences" aria-label="Preferences">
               <h2 className="section-title"><SectionIcon kind="writing" />Language &amp; writing</h2>
-              <div className="setting-row"><label htmlFor="language">Language</label><select id="language" value={state.settings.cirebon ? 'cirebon' : 'id-en'} disabled={disabled} onChange={event => void save({ cirebon: event.target.value === 'cirebon' })}><option value="id-en">Indonesia</option><option value="cirebon">Cirebon</option></select></div>
+              <div className="setting-row"><span>Language</span><span className="field-help">Indonesia</span></div>
               <div className="setting-row polish-row"><div><span>Polish with AI</span><p className="field-help">Clean punctuation and paragraphs.</p></div><div className="inline-setting"><Switch label="Polish with AI" checked={state.settings.cleanup} disabled={disabled} onChange={value => void save({ cleanup: value })} /><span className="model-badge">Qwen 3.8</span></div></div>
             </section></div>
             <section className="startup-setting"><div className="startup-copy"><SectionIcon kind="windows" /><div><h2>Start with Windows</h2><p>Ready whenever you need it.</p></div></div><Switch label="Start with Windows" checked={state.startupRegistered ?? state.settings.autoStart} disabled={disabled} onChange={value => void save({ autoStart: value })} /></section>

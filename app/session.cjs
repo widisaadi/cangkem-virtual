@@ -31,7 +31,7 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
       let warning = '';
       if (input.settings.cleanup) {
         publish({ phase: 'cleaning' });
-        try { text = await groq.cleanup(raw, key, signal, input.settings); }
+        try { text = await groq.cleanup(raw, key, signal); }
         catch (error) {
           if (signal.aborted) return;
           warning = `AI polishing failed. The original Whisper text is still available. ${error.message}`;

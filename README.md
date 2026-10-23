@@ -7,7 +7,7 @@
 **Voice dictation for Windows. Speak, press a shortcut, and keep writing.**
 
 Cawal transcribes your voice and pastes the result into the app you're using.
-Built for Indonesian and Cirebon speech, with support for mixed English wording.
+Built for everyday Indonesian speech, with support for mixed English wording and tech terms.
 Powered by Groq. Bring your own API key.
 
 [**Download for Windows**](https://github.com/widisaadi/cangkem-virtual/releases/download/v1.6.1/Cawal-Setup-1.6.1.exe)
@@ -20,7 +20,7 @@ Powered by Groq. Bring your own API key.
 - **Dictate in your apps** — transcribe and paste without switching windows.
 - **Choose your shortcut** — press once to record, again to finish; Esc cancels.
 - **Polish with AI** — optional punctuation and paragraph cleanup.
-- **Indonesia or Cirebon** — language presets that preserve conversational wording.
+- **Indonesian + English** — keeps conversational wording, English phrases and AI terms intact.
 - **Stay out of the way** — a small recording indicator and a system tray app.
 - **Set up in minutes** — guided onboarding, microphone selection, and optional Windows startup.
 
