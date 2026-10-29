@@ -49,7 +49,8 @@ Run `npm run test:installer` after building to render all installer screens and
 check navigation and folder validation without installing the application.
 The installer also supports `/S /D=<absolute folder>` for silent installation.
 Existing application settings and onboarding completion are preserved.
-After an interactive installation, Setup launches Cawal with `--setup-after-install`.
+Folder selection is a separate screen. Progress and completion share one stationary layout. Once
+installation completes, Continue setup launches Cawal with `--setup-after-install`.
 That mode continues directly to Groq, shortcut selection, optional dictation
 practice, and completion using the installer's visual theme. Existing users use
 an in-memory review flow; their persisted onboarding completion is not reset.
@@ -66,6 +67,22 @@ The application checks registration against the saved preference when launched.
 The recording indicator receives microphone levels without taking focus from
 the text field. Dictation requests use lifecycle tokens to reject late results
 after cancellation or a new recording.
+
+The target icon is read asynchronously from the captured window (bounded
+`WM_GETICON`, then its window class), with the executable icon as a fallback.
+Icon lookups carry a recording token so cancelled or delayed captures cannot
+overwrite the next recording's icon or monitor. The desktop smoke fixture uses
+a custom window icon to verify that generic executable branding is bypassed.
+
+Production Groq requests use Electron's Chromium network stack so system proxy
+and certificate handling follow Windows networking. API failures write bounded
+local metadata to `network-errors.jsonl` in the Cawal settings directory: stage,
+duration, HTTP status or network code, and timestamp. Keys, headers, response
+bodies, recordings, and transcripts are excluded. Cancellation is not an error.
+Transcription has a 15-second request deadline. Polishing has a 5-second deadline;
+the session also enforces an independent five-second deadline and discards late
+polishing results. If polishing stalls, the original transcript is delivered with a compact notice
+that disappears after two seconds. Detailed errors remain in Settings.
 
 Keep API keys, personal recordings, local settings, and generated build output
 out of commits. Preserve the [MIT license and attribution](../LICENSE).

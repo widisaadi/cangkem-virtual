@@ -28,36 +28,82 @@ const CLEANUP_INSTRUCTIONS = [
   'Before returning the text, silently check that sentence boundaries, commas, paired quotation marks, and paragraph breaks are consistent, and that no content, English phrase, number, or uncertainty was lost or invented. Return only the final text, with no introduction or explanation.',
 ].join('\n');
 
-function providerError(status, stage) {
-  if (status === 401) return 'Invalid Groq API key. Check your key in Settings.';
-  if (status === 403) return 'This model is not allowed for your Groq account. Check model access in Groq Console.';
-  if (status === 429) return 'Groq usage limit reached. Wait a moment and try again.';
-  if (status === 413) return 'Recording is too large. Try a shorter dictation.';
-  if (status === 404) return `Model ${stage === 'cleanup' ? CLEANUP_MODEL : 'Whisper'} is unavailable on Groq.`;
-  if (status >= 500) return 'Groq is experiencing issues. Try again shortly.';
-  return `Groq could not process the request (${status}). Check model access or try again.`;
+function providerError(status, stage, retryAfter) {
+  if (status === 401) return 'API key Groq tidak valid atau sudah dicabut. Periksa atau ganti key di Connection.';
+  if (status === 403) return 'Akun Groq belum diizinkan mengakses layanan ini. Periksa izin akun dan model di Groq Console.';
+  if (status === 429) {
+    const seconds = /^\d+$/.test(retryAfter || '') ? Number(retryAfter) : NaN;
+    const wait = seconds > 0 && seconds <= 86400
+      ? `Coba lagi sekitar ${seconds < 60 ? `${seconds} detik` : `${Math.ceil(seconds / 60)} menit`} lagi.`
+      : 'Tunggu hingga limit tersedia kembali, lalu coba lagi. Periksa batas pemakaian di Groq Console.';
+    return `Limit pemakaian Groq tercapai. ${wait}`;
+  }
+  if (status === 413) return 'Rekaman terlalu besar untuk diproses. Coba dikte yang lebih pendek.';
+  if (status === 404) return stage === 'models'
+    ? 'Layanan pengecekan model Groq tidak tersedia. Coba lagi nanti.'
+    : `Model ${stage === 'cleanup' ? 'perapian teks' : 'transkripsi'} tidak tersedia di Groq. Periksa model di Settings atau coba lagi nanti.`;
+  if (status === 400 || status === 422) return 'Groq tidak dapat memproses rekaman atau teks ini. Coba rekam ulang dengan dikte yang lebih pendek.';
+  if (status === 498) return 'Layanan Groq sedang penuh. Tunggu sebentar, lalu coba lagi.';
+  if (status === 408 || status === 504) return 'Groq terlalu lama merespons. Coba lagi setelah koneksi stabil.';
+  if (status >= 500) return 'Groq sedang mengalami gangguan. Coba lagi beberapa saat lagi.';
+  return 'Permintaan belum dapat diproses oleh Groq. Coba lagi; jika berulang, periksa koneksi dan pengaturan akun di Groq Console.';
 }
 
-function createGroq(fetcher = fetch) {
-  async function request(route, key, options, signal, stage, timeout = 90000) {
+function networkCode(error) {
+  const code = error.cause?.code || error.code;
+  if (typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code)) return code;
+  // Chromium reports these as Error messages rather than Node error causes.
+  return error.message?.match(/^net::(ERR_[A-Z0-9_]+)$/)?.[1];
+}
+function connectionError(stage, code) {
+  const step = stage === 'cleanup' ? 'Perapian teks' : stage === 'transcription' ? 'Transkripsi audio' : 'Pengecekan koneksi';
+  if (/ENOTFOUND|EAI_AGAIN|NAME_NOT_RESOLVED|DNS/.test(code || '')) return `${step} gagal karena alamat layanan Groq belum dapat ditemukan. Periksa koneksi internet atau DNS, lalu coba lagi.`;
+  if (/CERT|TLS|SSL/.test(code || '')) return `${step} gagal karena koneksi aman ke Groq tidak dapat dibuat. Periksa tanggal dan jam Windows serta pengaturan VPN atau antivirus.`;
+  if (/TIMED_OUT|TIMEOUT/.test(code || '')) return `${step} gagal karena koneksi ke Groq terlalu lama merespons. Periksa koneksi internet, lalu coba lagi.`;
+  return `${step} gagal karena koneksi ke Groq terputus atau tidak dapat dibuat. Periksa koneksi internet, VPN, atau firewall, lalu coba lagi.`;
+}
+function createGroq(fetcher = fetch, { onRequestError = () => {}, timeouts = {} } = {}) {
+  const deadlines = { models: 15000, transcription: 15000, cleanup: 5000, ...timeouts };
+  async function request(route, key, options, signal, stage) {
+    const started = Date.now();
+    let status;
+    const report = event => {
+      try { onRequestError({ stage, elapsedMs: Date.now() - started, ...event }); } catch { /* Best effort only. */ }
+    };
     try {
       const response = await fetcher(BASE + route, {
         ...options, redirect: 'error',
         headers: { ...options.headers, Authorization: `Bearer ${key}` },
-        signal: AbortSignal.any([signal || new AbortController().signal, AbortSignal.timeout(timeout)]),
+        signal: AbortSignal.any([signal || new AbortController().signal, AbortSignal.timeout(deadlines[stage])]),
       });
-      if (!response.ok) throw new Error(providerError(response.status, stage));
+      status = response.status;
+      // Translate provider statuses; never surface raw response bodies or keys.
+      if (!response.ok) {
+        report({ kind: 'http', status });
+        throw new Error(providerError(status, stage, response.headers.get('retry-after')));
+      }
       return await response.json();
     } catch (error) {
       if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-      if (error.name === 'TimeoutError' || error.name === 'AbortError') throw new Error('Groq timed out. Try again.');
-      if (error instanceof TypeError) throw new Error('Could not connect to Groq. Check your internet connection.');
+      const code = networkCode(error);
+      if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+        report({ kind: 'timeout', networkCode: code });
+        throw new Error(connectionError(stage, 'TIMEOUT'));
+      }
+      if (error instanceof TypeError || code) {
+        report({ kind: 'network', networkCode: code });
+        throw new Error(connectionError(stage, code));
+      }
+      if (error instanceof SyntaxError) {
+        report({ kind: 'response', status });
+        throw new Error('Respons Groq tidak dapat dibaca. Coba lagi beberapa saat lagi.');
+      }
       throw error;
     }
   }
   return {
     async test(key, settings) {
-      const result = await request('/models', key, { method: 'GET' }, null, 'models', 15000);
+      const result = await request('/models', key, { method: 'GET' }, null, 'models');
       const models = new Set((result.data || []).map(item => item.id));
       if (!models.has(settings.model)) throw new Error('The selected Whisper model is unavailable for this key.');
       if (settings.cleanup && !models.has(CLEANUP_MODEL)) throw new Error('Whisper is available, but Qwen 3.8 is unavailable for this key. Turn off Polish with AI to use dictation.');
@@ -91,7 +137,7 @@ function createGroq(fetcher = fetch) {
             { role: 'user', content: text },
           ],
         }),
-      }, signal, 'cleanup', 45000);
+      }, signal, 'cleanup');
       const choice = data.choices?.[0];
       const cleaned = choice?.message?.content?.trim();
       if (!cleaned || choice.finish_reason !== 'stop' || /<think>|<\/think>/i.test(cleaned)) {

@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createGroq, MAX_AUDIO_BYTES } = require('../app/groq.cjs');
+const { createGroq, providerError, MAX_AUDIO_BYTES } = require('../app/groq.cjs');
 const { DEFAULT_SETTINGS, CLEANUP_MODEL, validateSettings, validateKey } = require('../app/config.cjs');
 test('only the two Whisper models and supported settings can be saved', () => {
   assert.throws(() => validateSettings({ model: 'gpt-4o-transcribe' }));
@@ -76,10 +76,80 @@ test('empty or truncated AI output is rejected', async () => {
 });
 test('rate limit errors are helpful and never expose the response or API key', async () => {
   const groq = createGroq(async () => new Response('private provider message', { status: 429 }));
-  await assert.rejects(groq.cleanup('Hi', 'secret'), error => /usage limit/.test(error.message) && !/secret|private/.test(error.message));
+  await assert.rejects(groq.cleanup('Hi', 'secret'), error => /Limit pemakaian/.test(error.message) && !/secret|private|429/.test(error.message));
+});
+
+test('provider failures explain the cause without exposing status codes or response bodies', async () => {
+  for (const [status, expected] of [[401, /API key.*tidak valid/], [403, /izin/], [404, /tidak tersedia/], [413, /terlalu besar/], [422, /rekam ulang/], [429, /Limit pemakaian/], [498, /sedang penuh/], [503, /gangguan/], [504, /lama merespons/], [418, /belum dapat diproses/]]) {
+    const groq = createGroq(async () => Response.json({ error: { message: 'secret key gsk_private' } }, { status }));
+    await assert.rejects(groq.cleanup('Hi', 'gsk_private'), error => {
+      assert.match(error.message, expected);
+      assert.doesNotMatch(error.message, /gsk_|secret|\b\d{3}\b/);
+      return true;
+    });
+  }
+});
+
+test('rate limit wait uses only a validated provider retry hint', () => {
+  assert.match(providerError(429, 'transcription', '30'), /30 detik/);
+  assert.match(providerError(429, 'transcription', '120'), /2 menit/);
+  for (const value of ['private details', '-1', 'Infinity', '9999999999', '']) {
+    assert.match(providerError(429, 'transcription', value), /Periksa batas pemakaian/);
+  }
+});
+
+test('network, timeout, and malformed responses have safe explanations', async () => {
+  for (const [fetcher, expected] of [
+    [async () => { throw new TypeError('private transport detail'); }, /koneksi internet/],
+    [async () => { throw new DOMException('private timeout', 'TimeoutError'); }, /lama merespons/],
+    [async () => new Response('private malformed response'), /tidak dapat dibaca/],
+  ]) {
+    await assert.rejects(createGroq(fetcher).cleanup('Hi', 'secret'), error => expected.test(error.message) && !/private|secret/.test(error.message));
+  }
+});
+
+test('network failures identify the failed stage and retain only safe diagnostic metadata', async () => {
+  for (const [code, expected] of [['ENOTFOUND', /DNS/], ['UND_ERR_CONNECT_TIMEOUT', /lama merespons/], ['CERT_HAS_EXPIRED', /tanggal dan jam/], ['ECONNRESET', /terputus/]]) {
+    const events = [];
+    const groq = createGroq(async () => { throw new TypeError('private details and key', { cause: { code } }); }, { onRequestError: event => events.push(event) });
+    await assert.rejects(groq.cleanup('private transcript', 'secret-key'), error => {
+      assert.match(error.message, /^Perapian teks/);
+      assert.match(error.message, expected);
+      assert.doesNotMatch(error.message, /private|secret|ENOTFOUND|ECONNRESET|CERT_HAS_EXPIRED|UND_ERR/);
+      return true;
+    });
+    assert.equal(events.length, 1);
+    assert.equal(events[0].stage, 'cleanup');
+    assert.equal(events[0].networkCode, code);
+    assert.doesNotMatch(JSON.stringify(events), /private|secret|transcript/);
+  }
+});
+
+test('Chromium transport failures are translated and user cancellation stays silent', async () => {
+  const events = [];
+  const groq = createGroq(async () => { throw new Error('net::ERR_NAME_NOT_RESOLVED'); }, { onRequestError: event => events.push(event) });
+  await assert.rejects(groq.transcribe(new Uint8Array([1]), 'audio/webm', 'key', DEFAULT_SETTINGS), /Transkripsi audio.*DNS/);
+  assert.equal(events[0].networkCode, 'ERR_NAME_NOT_RESOLVED');
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(groq.cleanup('Hi', 'key', controller.signal), { name: 'AbortError' });
+  assert.equal(events.length, 1, 'cancellation is not logged as a network fault');
 });
 test('connection check requires Qwen only when cleanup is enabled', async () => {
   const groq = createGroq(async () => Response.json({ data: [{ id: DEFAULT_SETTINGS.model }] }));
   await assert.rejects(groq.test('key', DEFAULT_SETTINGS), /Qwen/);
   assert.match(await groq.test('key', { ...DEFAULT_SETTINGS, cleanup: false }), /Connected/);
+});
+
+test('stalled transcription and polishing requests are aborted within their deadlines', async () => {
+  const events = [];
+  const groq = createGroq((_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  }), { timeouts: { transcription: 25, cleanup: 25 }, onRequestError: event => events.push(event) });
+  // Keep the event loop alive: AbortSignal.timeout itself uses an unref timer.
+  const guard = setTimeout(() => {}, 1000);
+  try {
+    await assert.rejects(groq.transcribe(new Uint8Array([1]), 'audio/webm', 'key', DEFAULT_SETTINGS), /Transkripsi audio.*lama merespons/);
+    await assert.rejects(groq.cleanup('Hi', 'key'), /Perapian teks.*lama merespons/);
+    assert.deepEqual(events.map(event => [event.stage, event.kind]), [['transcription', 'timeout'], ['cleanup', 'timeout']]);
+  } finally { clearTimeout(guard); }
 });

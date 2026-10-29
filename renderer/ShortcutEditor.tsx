@@ -68,9 +68,9 @@ export default function ShortcutEditor({ value, capturing, disabled, onSave }: {
         <input id="custom-shortcut" ref={input} readOnly aria-label="Capture custom shortcut" aria-describedby="shortcut-help" value={capturing ? hint || 'Press a key combination…' : ''} onKeyDown={event => void capture(event)} onBlur={() => { if (capturing) void window.cawal?.captureShortcut(false); }} tabIndex={capturing ? 0 : -1} />
         {!capturing && <Shortcut value={draft} />}
       </div>
-      {capturing ? <button className="secondary" onClick={() => void cancel()}><Cross2Icon />Cancel</button>
+      <div className="shortcut-edit-actions">{capturing ? <button className="secondary" onClick={() => void cancel()}><Cross2Icon />Cancel</button>
         : changed ? <><button className="primary save-shortcut" disabled={disabled || saving} onClick={() => void save()}><CheckIcon />Save</button><button className="icon-button" aria-label="Discard shortcut changes" disabled={saving} onClick={() => void cancel()}><Cross2Icon /></button></>
-        : <button className="secondary shortcut-capture" aria-label="Edit dictation shortcut" disabled={disabled} onClick={() => void begin()}>Edit shortcut</button>}
+        : <button className="secondary shortcut-capture" aria-label="Edit dictation shortcut" disabled={disabled} onClick={() => void begin()}>Edit shortcut</button>}</div>
     </div>
     <p id="shortcut-help" className="field-help">{capturing ? 'Hold Ctrl, Alt, or Win and press another key. Esc to cancel.' : changed ? 'New shortcut ready. Save to activate it.' : 'Press to speak. Press again to finish.'}</p>
     {error && <p className="field-error" role="alert">{error}</p>}

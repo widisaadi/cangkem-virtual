@@ -17,6 +17,31 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
     active?.controller.abort(); active = null;
     publish({ phase: 'error', error: message, canRetry: Boolean(pending) });
   };
+  async function polish(raw, key, signal) {
+    const controller = new AbortController();
+    let timer, onAbort;
+    try {
+      const interrupted = new Promise((_resolve, reject) => {
+        onAbort = () => reject(signal.reason || new DOMException('Cancelled', 'AbortError'));
+        if (signal.aborted) { onAbort(); return; }
+        signal.addEventListener('abort', onAbort, { once: true });
+        timer = setTimeout(() => reject(new Error('Polishing melewati batas 5 detik.')), 5000);
+      });
+      // The session owns the deadline, even if a transport never settles after
+      // abort. Only the winning result can proceed to delivery.
+      return await Promise.race([
+        interrupted,
+        Promise.resolve().then(() => {
+          if (signal.aborted) throw signal.reason;
+          return groq.cleanup(raw, key, controller.signal);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+      controller.abort();
+    }
+  }
   async function run(id) {
     if (!current(id) || !pending) return;
     const { controller, target } = active;
@@ -31,10 +56,10 @@ function createSession({ groq, store, captureTarget, deliver, emit, command }) {
       let warning = '';
       if (input.settings.cleanup) {
         publish({ phase: 'cleaning' });
-        try { text = await groq.cleanup(raw, key, signal); }
+        try { text = await polish(raw, key, signal); }
         catch (error) {
           if (signal.aborted) return;
-          warning = `AI polishing failed. The original Whisper text is still available. ${error.message}`;
+          warning = `Perapian teks gagal. Hasil transkripsi asli tetap digunakan. ${error.message}`;
         }
       }
       if (!current(id)) return;

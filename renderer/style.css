@@ -52,6 +52,7 @@ h2 { font-size: 13px; font-weight: 600; }
 .shortcut-setting { display: grid; grid-template-columns: 166px minmax(0,1fr); gap: 8px; padding-bottom: 18px; }
 .shortcut-setting > h2 { padding-top: 12px; }
 .shortcut-edit-row { display: flex; align-items: center; gap: 12px; }
+.shortcut-edit-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .shortcut-field { position: relative; min-height: 40px; flex: 1; min-width: 0; display: flex; align-items: center; }
 .shortcut-field input { position: absolute; inset: 0; width: 100%; padding: 7px 9px; font-size: 11px; }
 .shortcut-field:not(.capturing) input { pointer-events: none; border: 0; background: transparent; opacity: 0; }
@@ -122,6 +123,9 @@ footer { display: flex; align-items: center; justify-content: space-between; gap
   background: #050506; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), 0 6px 14px rgba(0, 0, 0, .45);
   animation: pill-in .22s cubic-bezier(.2, .9, .3, 1.2) both; }
 .target-icon { flex: none; width: 20px; height: 20px; border-radius: 5px; object-fit: contain; transition: opacity .3s; }
+.overlay-notice { display: flex; align-items: center; gap: 8px; height: 36px; margin: 6px 10px 14px; padding: 0 12px; border: 1px solid #45443a; border-radius: 18px; background: #1c2122; box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+.overlay-notice img { width: 18px; height: 18px; object-fit: contain; flex: none; }
+.overlay-notice span { min-width: 0; color: var(--text); font-size: 11px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .is-processing .target-icon { opacity: .55; }
 .elapsed { flex: none; width: 30px; margin-left: auto; text-align: right; font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, .62); font-variant-numeric: tabular-nums; }
 .live-wave { display: block; flex: none; width: 80px; height: 28px; overflow: visible; }
@@ -239,6 +243,17 @@ kbd { min-width: 76px; padding: 12px 18px; font-size: 14px; font-weight: 700; bo
 .from-installer #practice-text { min-height: 118px; }
 .from-installer .practice-shortcut kbd { min-width: 50px; padding: 9px 12px; }
 .from-installer .setup-actions { margin-top: 22px; }
+.setup-shortcut .shortcut-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px 16px; }
+.setup-shortcut .shortcut-edit-row { display: contents; }
+.setup-shortcut .shortcut-field { grid-column: 1 / -1; justify-content: center; min-height: 90px; width: 100%; }
+.setup-shortcut .shortcut-field::after { display: none; }
+.setup-shortcut .shortcut { flex-wrap: nowrap; gap: 10px; }
+.setup-shortcut kbd { min-width: 56px; padding: 12px 14px; }
+.setup-shortcut .shortcut-edit-actions { grid-column: 2; grid-row: 2; }
+.setup-shortcut #shortcut-help { grid-column: 1; grid-row: 2; align-self: center; margin: 0; line-height: 1.6; }
+.setup-shortcut .field-error { grid-column: 1 / -1; }
+.practice-example { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.practice-example q { color: var(--text); }
 .from-installer .setup-ready .setup-actions { justify-content: flex-end; }
 @media (max-width: 780px) {
   .onboarding.from-installer { grid-template-columns: 190px minmax(0, 1fr); }

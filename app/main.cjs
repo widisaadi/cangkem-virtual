@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen, safeStorage, clipboard, session, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen, safeStorage, clipboard, session, dialog, shell, net } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createSettings } = require('./settings.cjs');
@@ -9,6 +9,8 @@ const { validateSettings, validateKey, HOTKEYS } = require('./config.cjs');
 const { electronAccelerator } = require('./shortcuts.cjs');
 const { createStartup } = require('./startup.cjs');
 const { createSetupFlow } = require('./setup-flow.cjs');
+const { createTargetIcon } = require('./target-icon.cjs');
+const { createNetworkDiagnostics } = require('./network-diagnostics.cjs');
 
 app.setName('Cawal');
 app.setPath('userData', path.join(app.getPath('appData'), 'Cawal'));
@@ -32,16 +34,22 @@ let shortcutCapturing = false;
 let captureTimer;
 let overlayDisplayId = null;
 let targetIcon = null;
+let targetIcons;
+let overlayNoticeTimer;
 let recordingId = null;
 let microphoneIssue = false;
 let startup;
 let startupError = '';
 let setupFlow;
+let smokeProviderFailure = 0;
 const groq = createGroq(smoke ? async url => {
-  if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'aja bobad bol ira jaga mulutnya' });
-  if (url.endsWith('/chat/completions')) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Aja bobad, bol. Ira jaga mulutnya.' } }] });
+  if (smokeProviderFailure) return Response.json({ error: { message: 'Private upstream details' } }, { status: smokeProviderFailure, headers: { 'retry-after': '60' } });
+  if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'hai aku pakai Cawal untuk meningkatkan produktivitas aku' });
+  if (url.endsWith('/chat/completions')) return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.' } }] });
   return Response.json({ data: [{ id: 'whisper-large-v3-turbo' }, { id: 'qwen/qwen3.8-27b' }] });
-} : undefined);
+} : (url, options) => net.fetch(url, options), {
+  onRequestError: smoke ? undefined : createNetworkDiagnostics(app.getPath('userData')),
+});
 const imagePath = path.join(__dirname, '..', 'resources', 'icon.png');
 
 function showMain() {
@@ -60,23 +68,33 @@ function broadcast() {
 function positionOverlay() {
   const { workArea } = screen.getAllDisplays().find(display => display.id === overlayDisplayId)
     || screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - 192) / 2), y: workArea.y + workArea.height - 76, width: 192, height: 56 });
+  const state = dictation.snapshot();
+  const notice = state.phase === 'error' && state.error || state.phase === 'done' && state.warning;
+  const width = notice ? Math.min(320, workArea.width - 24) : 192;
+  const height = 56;
+  overlay.setBounds({ x: Math.round(workArea.x + (workArea.width - width) / 2), y: workArea.y + workArea.height - height - 20, width, height });
 }
 function updateState(state) {
+  clearTimeout(overlayNoticeTimer);
+  if (state.phase === 'preparing' || !dictation.busy()) {
+    targetIcons?.reset();
+    targetIcon = null;
+  }
   if (state.phase === 'preparing' || state.phase === 'idle') microphoneIssue = false;
   broadcast();
   const busy = dictation.busy();
   if (busy && !escapeRegistered) escapeRegistered = globalShortcut.register('Escape', () => dictation.cancel());
   if (!busy && escapeRegistered) { globalShortcut.unregister('Escape'); escapeRegistered = false; }
   if (state.phase === 'preparing') { overlayDisplayId = null; targetIcon = null; overlay.hide(); }
-  else if (busy) {
+  else if (busy || !microphoneIssue && state.phase === 'error' && state.error || state.phase === 'done' && state.warning) {
     // Capture the target monitor first, then show without taking keyboard focus.
     positionOverlay();
     overlay.setAlwaysOnTop(true, 'screen-saver');
     overlay.showInactive();
     overlay.moveTop();
+    if (!busy) overlayNoticeTimer = setTimeout(() => { if (!overlay.isDestroyed()) overlay.hide(); }, 2000);
   } else overlay.hide();
-  if (tray) tray.setToolTip(`Cawal · ${state.phase === 'recording' ? 'Listening' : busy ? 'Processing' : 'Ready to dictate'}`);
+  if (tray) tray.setToolTip(`Cawal · ${state.phase === 'error' ? 'Dikte belum berhasil — buka Cawal untuk detail' : state.phase === 'recording' ? 'Listening' : busy ? 'Processing' : 'Ready to dictate'}`);
 }
 function toggle(paste = false) {
   if (shortcutCapturing) return;
@@ -155,21 +173,32 @@ else {
     startup = createStartup(app, { enabled: app.isPackaged && !smoke });
     try { startup.sync(store.read().autoStart); } catch (error) { startupError = error.message; }
     mainWindow = createWindow(); overlay = createWindow(true);
-    const paste = createPaste({ app, clipboard, ownWindows: () => BrowserWindow.getAllWindows(), onTargetDisplay: point => {
-      overlayDisplayId = screen.getDisplayNearestPoint(screen.screenToDipPoint(point)).id;
-    }, onTargetApp: image => {
-      // Show the icon of the app that will receive the text (Edge, Chrome, ChatGPT…).
-      app.getFileIcon(image, { size: 'normal' }).then(icon => {
-        if (icon.isEmpty() || !dictation.busy()) return;
-        targetIcon = icon.toDataURL(); broadcast();
-      }).catch(() => {});
-    } });
+    const paste = createPaste({ app, clipboard, ownWindows: () => BrowserWindow.getAllWindows() });
+    targetIcons = createTargetIcon({
+      windowIcon: paste.windowIcon,
+      fileIcon: async image => {
+        const icon = await app.getFileIcon(image, { size: 'large' });
+        return icon.isEmpty() ? null : icon.toDataURL();
+      },
+      publish: icon => { targetIcon = icon; broadcast(); },
+    });
     maskMenu = paste.maskMenu;
     dictation = createSession({ groq, store, ...paste,
-      captureTarget: () => setupFlow.step() === 'trial' && mainWindow.isFocused() ? { onboarding: true } : paste.captureTarget(),
+      captureTarget: async () => {
+        if (setupFlow.step() === 'trial' && mainWindow.isFocused()) return { onboarding: true };
+        const token = targetIcons.token();
+        const target = await paste.captureTarget();
+        if (target && targetIcons.current(token)) {
+          if (target.displayPoint) overlayDisplayId = screen.getDisplayNearestPoint(screen.screenToDipPoint(target.displayPoint)).id;
+          void targetIcons.load(target, token);
+        }
+        return target;
+      },
       deliver: (text, target) => target?.onboarding ? Promise.resolve({ pasted: true, copied: false, message: 'Practice complete.' }) : paste.deliver(text, target),
       emit: updateState, command: value => {
-      recordingId = value.type === 'start' ? value.id : null;
+      // Keep ownership through stop: MediaRecorder can still report a failure
+      // while it finishes the audio. Cancellation alone invalidates the owner.
+      recordingId = value.type === 'cancel' ? null : value.id;
       mainWindow.webContents.send('cawal:command', value);
     } });
     mainWindow.on('close', event => { if (!quitting) { event.preventDefault(); endShortcutCapture(); mainWindow.hide(); } });
@@ -269,7 +298,7 @@ else {
       if (microphoneIssue) showMain();
     });
     handle('audio', (id, buffer, mime) => dictation.audio(id, buffer, mime));
-    if (smoke) require('../scripts/smoke.cjs').run({ app, mainWindow, overlay, dictation, store, clipboard, setupFlow, broadcast });
+    if (smoke) require('../scripts/smoke.cjs').run({ app, mainWindow, overlay, dictation, store, clipboard, setupFlow, broadcast, setProviderFailure: status => { smokeProviderFailure = status; } });
   }).catch(error => { dialog.showErrorBox('Cawal could not start', error.message); app.exit(1); });
 }
 app.on('activate', () => mainWindow && showMain());

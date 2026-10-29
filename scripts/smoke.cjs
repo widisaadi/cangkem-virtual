@@ -9,7 +9,7 @@ async function until(check, label, timeout = 12000) {
   while (Date.now() - start < timeout) { if (await check()) return; await delay(100); }
   throw new Error(`Timed out: ${label}`);
 }
-exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, setupFlow, broadcast }) => {
+exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, setupFlow, broadcast, setProviderFailure }) => {
   const errors = [];
   mainWindow.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   const js = source => mainWindow.webContents.executeJavaScript(source, true);
@@ -51,7 +51,7 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     await until(() => dictation.snapshot().phase === 'recording', 'practice microphone active');
     await delay(1200);
     dictation.stop();
-    await until(() => js('document.querySelector("#practice-text").value.includes("Aja bobad")'), 'practice text delivered to tutorial');
+    await until(() => js('document.querySelector("#practice-text").value.includes("Hai, aku pakai Cawal")'), 'practice text delivered to tutorial');
     assert.equal(clipboard.readText(), beforePracticeClipboard, 'practice does not overwrite the clipboard');
     await capture('cawal-onboarding-practice.png');
     await js('document.querySelector(".skip-practice").click()');
@@ -129,9 +129,9 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     await js('window.cawal.action("toggle")');
     await until(() => dictation.snapshot().phase === 'done', 'transcription and cleanup');
     await until(() => overlay.webContents.executeJavaScript('document.querySelector(".live-wave .wave-line").getAttribute("d") === "M2 14 L78 14"'), 'Flow Line resets after recording');
-    assert.equal(dictation.snapshot().result.text, 'Aja bobad, bol. Ira jaga mulutnya.');
+    assert.equal(dictation.snapshot().result.text, 'Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.');
     assert.equal(dictation.snapshot().result.pasted, false);
-    assert.equal(clipboard.readText(), 'Aja bobad, bol. Ira jaga mulutnya.');
+    assert.equal(clipboard.readText(), 'Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.');
     await delay(150);
     assert.equal(await js('Boolean(document.querySelector(".recovery"))'), true, 'clipboard recovery available without transcript');
     await capture('cawal-recovery.png');
@@ -196,6 +196,8 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     assert.equal(overlay.isVisible(), true);
     assert.equal(screen.getDisplayMatching(overlay.getBounds()).id, targetDisplay.id, 'wave follows the typing target monitor, independently of the mouse');
     assert.equal(overlay.isAlwaysOnTop(), true);
+    await until(() => overlayJs('Boolean(document.querySelector(".target-icon").src.startsWith("data:image/png;base64,"))'), 'native window icon reaches overlay');
+    const targetIconSource = await overlayJs('document.querySelector(".target-icon").src');
     console.log(`PASS: Overlay on target monitor; ${screen.getAllDisplays().length} displays, pointer and target differ: ${pointerDisplay.id !== targetDisplay.id}.`);
     await until(() => overlayJs('window.testLevels.filter(value => value > 0).length > 5'), 'real microphone levels reach overlay');
     assert.equal(await overlayJs('document.querySelectorAll(".live-wave .wave-line").length'), 1);
@@ -206,7 +208,10 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     assert.equal(await overlayJs('document.documentElement.scrollWidth <= innerWidth'), true);
     const backgroundResult = await backgroundRun;
     if (backgroundResult.error) throw backgroundResult.error;
-    console.log(backgroundResult.value.stdout.trim());
+    const expectedIcon = backgroundResult.value.stdout.split(/\r?\n/).find(line => line.startsWith('ICON '))?.slice(5);
+    assert.equal(targetIconSource, expectedIcon, 'overlay shows the window icon even when the executable has generic branding');
+    console.log(backgroundResult.value.stdout.split(/\r?\n/).filter(line => !line.startsWith('ICON ')).join('\n').trim());
+    console.log('PASS: Native window branding reaches the overlay instead of the generic executable icon.');
     assert.equal(dictation.snapshot().phase, 'done');
     assert.equal(dictation.snapshot().result.pasted, true);
     assert.equal(mainWindow.isVisible(), false);
@@ -218,6 +223,34 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     clipboard.writeText('Cawal native paste test');
     const native = await promisify(execFile)(fixture, [path.join(__dirname, '..', 'resources', 'bin', 'cawal-paste.exe')], { windowsHide: true, timeout: 12000 });
     console.log(native.stdout.trim());
+    // Provider failures must be readable while settings are hidden, without
+    // exposing upstream codes or treating every failure as an invalid API key.
+    mainWindow.hide();
+    for (const [status, expected, name] of [[429, /Limit Groq tercapai/, 'limit'], [401, /API key.*tidak valid/, 'key'], [503, /Groq sedang bermasalah/, 'service']]) {
+      setProviderFailure(status);
+      await dictation.start({ paste: false });
+      await until(() => dictation.snapshot().phase === 'recording', 'provider failure recording');
+      await delay(1200); dictation.stop();
+      await until(() => dictation.snapshot().phase === 'error', 'provider failure surfaced');
+      await until(() => overlayJs('Boolean(document.querySelector(".overlay-notice"))'), 'failure explanation reaches overlay');
+      const message = await overlayJs('document.querySelector(".overlay-notice").innerText');
+      assert.match(message, expected);
+      assert.doesNotMatch(message, /Private|429|401|503/);
+      assert.equal(overlay.isVisible(), true);
+      assert.deepEqual(overlay.getSize(), [320, 56], 'error notice stays compact');
+      assert.equal(mainWindow.isVisible(), false, 'error notice does not open settings or steal focus');
+      assert.equal(dictation.snapshot().canRetry, true);
+      fs.writeFileSync(path.join(output, `cawal-error-${name}.png`), (await overlay.webContents.capturePage()).toPNG());
+      await delay(2100);
+      assert.equal(overlay.isVisible(), false, 'notice disappears after two seconds');
+      assert.equal(dictation.snapshot().phase, 'error', 'details and recorded audio remain available after the notice disappears');
+      setProviderFailure(0);
+      await dictation.retry();
+      assert.equal(dictation.snapshot().phase, 'done', 'recorded audio can be retried after provider recovery');
+      assert.equal(overlay.isVisible(), false);
+      dictation.clear();
+    }
+    console.log('PASS: Limit, invalid-key and service errors explain the cause in the background overlay; recovery retry works.');
     const savedBeforeInstallerSetup = fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf8');
     setupFlow.start(); mainWindow.setSize(850, 620); broadcast();
     await until(() => js('Boolean(document.querySelector(".from-installer .setup-connect"))'), 'installer continues to Groq setup for existing users');
@@ -235,7 +268,7 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     await dictation.start({ paste: true });
     await until(() => dictation.snapshot().phase === 'recording', 'installer practice records');
     await delay(1200); dictation.stop();
-    await until(() => js('document.querySelector("#practice-text").value.includes("Aja bobad")'), 'installer practice receives dictation');
+    await until(() => js('document.querySelector("#practice-text").value.includes("Hai, aku pakai Cawal")'), 'installer practice receives dictation');
     await capture('cawal-installer-trial.png');
     await js('document.querySelector(".skip-practice").click()');
     await until(() => js('Boolean(document.querySelector(".setup-ready"))'), 'installer final step');
@@ -253,14 +286,14 @@ exports.run = async ({ app, mainWindow, overlay, dictation, store, clipboard, se
     assert.deepEqual(errors, []);
     console.log('PASS: Settings-only navigation, key form and connection test, custom shortcut capture/save/conflict/cancel, Graphite palette, compact layout, reduced motion, encrypted key, fake microphone, Groq pipeline stub, clipboard recovery, cancellation and overlay.');
     console.log(`Screenshots: ${output}`);
-    if (['Aja bobad, bol. Ira jaga mulutnya.', 'Cawal native paste test'].includes(clipboard.readText())) clipboard.write(oldClipboard);
+    if (['Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.', 'Cawal native paste test'].includes(clipboard.readText())) clipboard.write(oldClipboard);
     app.exit(0);
   } catch (error) {
     console.error('FAIL:', error.stack);
     console.error('State:', JSON.stringify(dictation.snapshot()));
     console.error('Renderer errors:', errors);
     await capture('cawal-failure.png').catch(() => {});
-    if (['Aja bobad, bol. Ira jaga mulutnya.', 'Cawal native paste test'].includes(clipboard.readText())) clipboard.write(oldClipboard);
+    if (['Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.', 'Cawal native paste test'].includes(clipboard.readText())) clipboard.write(oldClipboard);
     app.exit(1);
   }
 };

@@ -5,6 +5,9 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 
 class Paste {
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
@@ -26,6 +29,32 @@ class Paste {
     [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder path, ref uint size);
+    [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")] static extern IntPtr GetClassLongPtr(IntPtr window, int index);
+    static string WindowIcon(IntPtr window) {
+        // Borrowed HICONs belong to the target app; dispose only our bitmap.
+        // Bound WM_GETICON calls so an unresponsive app cannot stall dictation.
+        foreach (int kind in new int[] { 1, 2, 0 }) {
+            IntPtr icon;
+            if (SendMessageTimeout(window, 0x7F, new IntPtr(kind), IntPtr.Zero, 2, 150, out icon) != IntPtr.Zero && icon != IntPtr.Zero) {
+                string png = IconPng(icon); if (png != null) return png;
+            }
+        }
+        foreach (int index in new int[] { -14, -34 }) {
+            string png = IconPng(GetClassLongPtr(window, index)); if (png != null) return png;
+        }
+        return null;
+    }
+    static string IconPng(IntPtr handle) {
+        if (handle == IntPtr.Zero) return null;
+        try {
+            using (var bitmap = Icon.FromHandle(handle).ToBitmap())
+            using (var stream = new MemoryStream()) {
+                bitmap.Save(stream, ImageFormat.Png);
+                return Convert.ToBase64String(stream.ToArray());
+            }
+        } catch { return null; }
+    }
     static string ImagePath(uint pid) {
         // Limited query access also works for most elevated processes.
         IntPtr process = OpenProcess(0x1000, false, pid);
@@ -75,6 +104,14 @@ class Paste {
     }
     static int Main(string[] args) {
         try {
+            if (args.Length == 3 && args[0] == "icon") {
+                IntPtr window = new IntPtr(Convert.ToInt64(args[1], 16)); uint pid;
+                GetWindowThreadProcessId(window, out pid);
+                if (!IsWindow(window) || pid != UInt32.Parse(args[2])) return 1;
+                string icon = WindowIcon(window);
+                if (icon != null) Console.WriteLine(icon);
+                return 0;
+            }
             if (args.Length == 1 && args[0] == "capture") {
                 // Report physical monitor coordinates; Electron converts these to DIP.
                 SetProcessDpiAwarenessContext(new IntPtr(-4));

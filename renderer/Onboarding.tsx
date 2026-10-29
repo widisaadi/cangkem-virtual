@@ -54,6 +54,7 @@ export default function Onboarding({ state }: { state: Snapshot }) {
       {step === 'shortcut' && <><p className="setup-description">Choose the keys you’ll use to start and finish dictation.</p><div className="setup-form">{shortcut}</div>{state.shortcutError && <p role="alert" className="field-error">{state.shortcutError}</p>}</>}
       {step === 'trial' && <>
         <p className="setup-description">Click the text area below. Press your shortcut, say something, then press it again to finish.</p>
+        <p className="practice-example">Coba ucapkan: <q>Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.</q></p>
         <div className="practice-shortcut"><Shortcut value={state.settings.hotkey} /><span role="status">{busy ? labels[state.phase] : practice ? 'Done' : 'Ready to try'}</span></div>
         <textarea id="practice-text" aria-label="Dictation practice" placeholder="Your words will appear here…" value={practice} onChange={event => setPractice(event.target.value)} />
         <p className="field-help">Audio is sent to Groq for transcription. You can skip this step.</p>

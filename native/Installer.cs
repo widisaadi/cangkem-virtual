@@ -154,9 +154,10 @@ internal sealed class SetupWindow : Window
     bool installing;
     bool previewMode;
     public int Result { get; private set; }
-    readonly TextBlock heading, description, error, eyebrow, footer, progressText;
+    readonly TextBlock heading, description, error, eyebrow, footer, progressText, progressHelp;
     readonly Button primary, back, close;
-    readonly StackPanel welcome, location, complete;
+    readonly StackPanel welcome, location;
+    readonly ProgressBar installProgress;
     readonly Grid progress;
     readonly TextBox directory;
     readonly Image logo;
@@ -235,15 +236,10 @@ internal sealed class SetupWindow : Window
        </StackPanel>
        <Grid x:Name='Progress' Visibility='Collapsed' VerticalAlignment='Center'>
         <StackPanel><TextBlock x:Name='ProgressText' Text='Installing application files…' FontSize='15'/>
-         <ProgressBar x:Name='InstallProgress' Height='7' Margin='0,20,0,0' IsIndeterminate='True' Foreground='#FFDD33' Background='#30383A' BorderThickness='0'/>
-         <TextBlock Text='This may take a moment. Please keep this window open.' FontSize='12' Foreground='#A9B3B6' Margin='0,16,0,0' LineHeight='21'/>
+         <ProgressBar x:Name='InstallProgress' Height='7' Margin='0,12,0,0' Maximum='100' Foreground='#FFDD33' Background='#30383A' BorderThickness='0'/>
+         <TextBlock x:Name='ProgressHelp' FontSize='12' Foreground='#A9B3B6' Margin='0,12,0,0' LineHeight='21'/>
         </StackPanel>
        </Grid>
-       <StackPanel x:Name='Complete' Visibility='Collapsed'>
-        <Border Background='#222829' BorderBrush='#3E484B' BorderThickness='1' CornerRadius='12' Padding='20'>
-         <StackPanel><TextBlock Text='Next, make it yours.' FontSize='17' FontWeight='SemiBold'/><TextBlock Text='Connect Groq, choose your shortcut, and try dictation. Your existing API key and preferences are preserved.' Foreground='#A9B3B6' FontSize='12' Margin='0,10,0,0' LineHeight='21'/></StackPanel>
-        </Border>
-       </StackPanel>
       </Grid>
       <TextBlock x:Name='Error' Grid.Row='4' Foreground='#FFDD33' FontSize='12' LineHeight='19' Margin='0,10,0,0' AutomationProperties.LiveSetting='Assertive'/>
      </Grid>
@@ -273,7 +269,8 @@ internal sealed class SetupWindow : Window
         heading = Find<TextBlock>("Heading"); description = Find<TextBlock>("Description"); eyebrow = Find<TextBlock>("Eyebrow");
         error = Find<TextBlock>("Error"); footer = Find<TextBlock>("Footer"); progressText = Find<TextBlock>("ProgressText");
         primary = Find<Button>("Primary"); back = Find<Button>("Back"); close = Find<Button>("Close");
-        welcome = Find<StackPanel>("Welcome"); location = Find<StackPanel>("Location"); complete = Find<StackPanel>("Complete");
+        welcome = Find<StackPanel>("Welcome"); location = Find<StackPanel>("Location");
+        progressHelp = Find<TextBlock>("ProgressHelp"); installProgress = Find<ProgressBar>("InstallProgress");
         progress = Find<Grid>("Progress"); directory = Find<TextBox>("Directory"); logo = Find<Image>("Logo"); content = Find<Border>("Content");
         Find<TextBlock>("Version").Text = "Cawal " + version;
         directory.Text = target;
@@ -312,17 +309,22 @@ internal sealed class SetupWindow : Window
         page = next; error.Text = "";
         welcome.Visibility = next == 0 ? Visibility.Visible : Visibility.Collapsed;
         location.Visibility = next == 1 ? Visibility.Visible : Visibility.Collapsed;
-        progress.Visibility = next == 2 ? Visibility.Visible : Visibility.Collapsed;
-        complete.Visibility = next == 3 ? Visibility.Visible : Visibility.Collapsed;
+        progress.Visibility = next >= 2 ? Visibility.Visible : Visibility.Collapsed;
+        directory.IsReadOnly = next >= 2;
+        Find<Button>("Browse").IsEnabled = next < 2;
+        installProgress.IsIndeterminate = next == 2;
+        installProgress.Value = next == 3 ? 100 : 0;
+        progressText.Text = next == 3 ? "Cawal is installed." : next == 2 ? "Installing application files…" : "Ready to install";
+        progressHelp.Text = next == 3 ? "Continue to connect Groq and set up dictation." : next == 2 ? "Please keep this window open until installation finishes." : "Select Install Cawal to begin.";
         back.Visibility = next == 1 ? Visibility.Visible : Visibility.Collapsed;
         primary.IsEnabled = next != 2; close.IsEnabled = next != 2;
-        eyebrow.Text = next == 0 ? "WELCOME TO CAWAL" : next == 1 ? "MAKE YOURSELF AT HOME" : next == 2 ? "SETTING THINGS UP" : "ALL SET";
-        heading.Text = next == 0 ? "Pake Cangkem Virtual ,\nBuild Aplikasi 2.5x Lebih Cepat" : next == 1 ? "Choose your space." : next == 2 ? "Making room for your voice." : "Cawal is installed.";
+        eyebrow.Text = next == 0 ? "WELCOME TO CAWAL" : next == 1 ? "MAKE YOURSELF AT HOME" : "INSTALLATION";
+        heading.Text = next == 0 ? "Pake Cangkem Virtual ,\nBuild Aplikasi 2.5x Lebih Cepat" : next == 1 ? "Choose your space." : "Install Cawal";
         if (next == 0) heading.FontSize = 25; else heading.FontSize = 29;
-        description.Text = next == 0 ? "Less typing. More creating. Let your voice do the work." : next == 1 ? "Install Cawal for your Windows account." : next == 2 ? "Installing Cawal " + version + ". Your preferences will be preserved." : "Continue to your Groq API key and dictation setup.";
+        description.Text = next == 0 ? "Less typing. More creating. Let your voice do the work." : next == 1 ? "Install Cawal for your Windows account." : "Cawal " + version + " · Your preferences will be preserved.";
         primary.Content = next == 0 ? "Get started" : next == 1 ? "Install Cawal" : next == 2 ? "Installing…" : "Continue setup";
         footer.Text = next == 0 ? "Welcome" : next == 1 ? "Install, then connect Groq" : next == 2 ? "Next: Groq API key" : "Next: Groq API key";
-        Animate();
+        if (next <= 2) Animate();
     }
 
     async Task Next()
@@ -337,11 +339,11 @@ internal sealed class SetupWindow : Window
         try
         {
             installDirectory = Installer.ValidateDirectory(directory.Text);
-            if (previewMode) { SetPage(3); return; }
+            if (previewMode) { SetPage(2); await Task.Delay(150); SetPage(3); return; }
             installing = true; SetPage(2);
             int code = await Task.Run(() => Installer.Install(installDirectory));
             if (code != 0) throw new InvalidOperationException("Setup returned code " + code + ". Close Cawal and try again, or choose a folder you can write to.");
-            installing = false; SetPage(3); LaunchSetup();
+            installing = false; SetPage(3);
         }
         catch (Exception ex) { installing = false; SetPage(1); error.Text = ex.Message; }
         finally { Installer.Cleanup(); }
@@ -388,8 +390,19 @@ internal sealed class SetupWindow : Window
                     await Next();
                     if (page != 1 || string.IsNullOrEmpty(error.Text)) throw new Exception("A drive root was not rejected.");
                     directory.Text = original;
+                    UpdateLayout();
+                    if (location.Visibility != Visibility.Visible || progress.Visibility != Visibility.Collapsed)
+                        throw new Exception("Folder selection must remain a separate screen.");
+                    SetPage(2); UpdateLayout();
+                    Point statusPosition = progress.TranslatePoint(new Point(0, 0), this);
+                    string installationHeading = heading.Text;
                     await Next();
+                    UpdateLayout();
                     if (page != 3 || !primary.IsEnabled) throw new Exception("Completion controls are unavailable.");
+                    if (location.Visibility != Visibility.Collapsed || progress.Visibility != Visibility.Visible || installProgress.IsIndeterminate || installProgress.Value != 100)
+                        throw new Exception("Installation did not finish in the existing progress layout.");
+                    if (heading.Text != installationHeading || progress.TranslatePoint(new Point(0, 0), this) != statusPosition)
+                        throw new Exception("Installation controls shifted on completion.");
                 }
                 else SetPage(targetPage == "location" ? 1 : targetPage == "installing" ? 2 : targetPage == "complete" ? 3 : 0);
                 await Task.Delay(800);

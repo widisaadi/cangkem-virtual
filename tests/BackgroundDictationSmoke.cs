@@ -22,6 +22,12 @@ class BackgroundDictationSmoke {
     [STAThread] static int Main(string[] args) {
         int result = 1, ticks = 0;
         var form = new Form { Text = "Cawal background dictation verification", StartPosition = FormStartPosition.Manual, Location = new Point(-12000, -12000), Size = new Size(300, 150), ShowInTaskbar = false };
+        form.Icon = SystemIcons.Information;
+        using (var bitmap = form.Icon.ToBitmap())
+        using (var stream = new System.IO.MemoryStream()) {
+            bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            Console.WriteLine("ICON data:image/png;base64," + Convert.ToBase64String(stream.ToArray()));
+        }
         if (args.Length == 2) { form.Location = new Point(Int32.Parse(args[0]), Int32.Parse(args[1])); }
         var input = new TextBox { Multiline = true, Dock = DockStyle.Fill };
         form.Controls.Add(input);
@@ -38,7 +44,7 @@ class BackgroundDictationSmoke {
                 if (!input.Focused) { Console.WriteLine("FAIL: Test text field lost keyboard focus."); timer.Stop(); form.Close(); return; }
                 Shortcut();
             }
-            if (ticks > 13 && input.Text == "Aja bobad, bol. Ira jaga mulutnya.") {
+            if (ticks > 13 && input.Text == "Hai, aku pakai Cawal untuk meningkatkan produktivitas aku.") {
                 Console.WriteLine("PASS: Native global shortcut started and stopped hidden dictation; overlay preserved focus and text pasted into the original target.");
                 result = 0; timer.Stop(); form.Close();
             }

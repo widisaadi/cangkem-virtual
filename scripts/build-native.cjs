@@ -9,6 +9,6 @@ const compiler = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET',
 if (!fs.existsSync(compiler)) throw new Error('Compiler .NET Framework Windows tidak tersedia. Aktifkan .NET Framework 4.x.');
 fs.mkdirSync(path.dirname(output), { recursive: true });
 if (!fs.existsSync(output) || fs.statSync(source).mtimeMs > fs.statSync(output).mtimeMs) {
-  execFileSync(compiler, ['/nologo', '/optimize+', '/platform:x64', '/target:exe', `/out:${output}`, source], { stdio: 'inherit', windowsHide: true });
+  execFileSync(compiler, ['/nologo', '/optimize+', '/platform:x64', '/target:exe', '/reference:System.Drawing.dll', `/out:${output}`, source], { stdio: 'inherit', windowsHide: true });
 }
 console.log('Cawal: Windows paste helper siap.');

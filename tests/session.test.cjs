@@ -45,6 +45,62 @@ test('AI failure still delivers original Whisper transcript', async () => {
   assert.match(session.snapshot().warning, /Qwen unavailable/);
   assert.equal(session.snapshot().phase, 'done');
 });
+
+test('stalled polishing delivers the original transcript after its deadline', async () => {
+  const groq = createGroq(async (url, { signal }) => {
+    if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'teks asli tetap aman' });
+    return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  }, { timeouts: { cleanup: 25 } });
+  const { session, deliveries, record } = setup({ groq });
+  const guard = setTimeout(() => {}, 1000);
+  try { await session.audio(await record(), new ArrayBuffer(2), 'audio/webm'); }
+  finally { clearTimeout(guard); }
+  assert.equal(session.snapshot().phase, 'done');
+  assert.equal(deliveries[0].text, 'teks asli tetap aman');
+  assert.equal(session.snapshot().result.cleaned, false);
+  assert.match(session.snapshot().warning, /Perapian teks.*lama merespons/);
+});
+
+test('session deadline delivers Whisper at five seconds even if polishing ignores cancellation', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishPolishing, polishingSignal;
+  const { session, deliveries, record } = setup({ groq: {
+    transcribe: async () => 'teks asli Whisper',
+    cleanup: (_raw, _key, signal) => { polishingSignal = signal; return new Promise(resolve => { finishPolishing = resolve; }); },
+  } });
+  const request = session.audio(await record(), new ArrayBuffer(2), 'audio/webm');
+  await new Promise(setImmediate);
+  assert.equal(session.snapshot().phase, 'cleaning');
+  t.mock.timers.tick(4999);
+  await new Promise(setImmediate);
+  assert.equal(deliveries.length, 0);
+  t.mock.timers.tick(1);
+  await new Promise(setImmediate);
+  assert.equal(session.snapshot().phase, 'done');
+  await request;
+  assert.equal(polishingSignal.aborted, true);
+  assert.equal(deliveries[0].text, 'teks asli Whisper');
+  assert.equal(session.snapshot().result.cleaned, false);
+  finishPolishing('Hasil polishing terlambat.');
+  await new Promise(setImmediate);
+  assert.equal(deliveries.length, 1, 'late polishing cannot paste a second time');
+  assert.equal(session.snapshot().result.text, 'teks asli Whisper');
+});
+
+test('cancelling stalled polishing aborts it without delivering the transcript', async () => {
+  let polishingSignal;
+  const { session, deliveries, record } = setup({ groq: {
+    transcribe: async () => 'cancelled words',
+    cleanup: (_raw, _key, signal) => { polishingSignal = signal; return new Promise(() => {}); },
+  } });
+  const request = session.audio(await record(), new ArrayBuffer(2), 'audio/webm');
+  await new Promise(setImmediate);
+  session.cancel();
+  await request;
+  assert.equal(polishingSignal.aborted, true);
+  assert.equal(session.snapshot().phase, 'idle');
+  assert.equal(deliveries.length, 0);
+});
 test('retry keeps audio but never pastes to the stale target', async () => {
   let attempts = 0;
   const { session, record, deliveries } = setup({ groq: { transcribe: async () => { if (!attempts++) throw new Error('offline'); return 'hi'; }, cleanup: async () => 'Hi.' } });

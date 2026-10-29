@@ -11,7 +11,7 @@ function parseCapture(stdout) {
   const image = rest.find(line => line.startsWith('PATH '))?.slice(5) || null;
   return { handle, pid, name, image, displayPoint: display ? { x: Number(display[1]), y: Number(display[2]) } : null };
 }
-function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {}, onTargetApp = () => {} }) {
+function createPaste({ app, clipboard, ownWindows }) {
   const binary = path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', 'resources'), 'bin', 'cawal-paste.exe');
   return {
     async captureTarget() {
@@ -19,15 +19,18 @@ function createPaste({ app, clipboard, ownWindows, onTargetDisplay = () => {}, o
       const captured = parseCapture(stdout);
       if (!captured) return null;
       const { handle, pid, name, image, displayPoint } = captured;
-      if (displayPoint) onTargetDisplay(displayPoint);
       const value = BigInt(`0x${handle}`);
       if (Number(pid) === process.pid || /^(cawal|electron)$/i.test(name)) return null;
       if (ownWindows().some(window => {
         const bytes = window.getNativeWindowHandle();
         return (bytes.length >= 8 ? bytes.readBigUInt64LE() : BigInt(bytes.readUInt32LE())) === value;
       })) return null;
-      if (image) onTargetApp(image);
-      return { handle, pid };
+      return { handle, pid, image, displayPoint };
+    },
+    async windowIcon({ handle, pid }) {
+      const { stdout } = await run(binary, ['icon', handle, pid], { windowsHide: true, timeout: 1500 });
+      const png = stdout.trim();
+      return png.startsWith('iVBORw0KGgo') ? `data:image/png;base64,${png}` : null;
     },
     maskMenu() {
       run(binary, ['mask'], { windowsHide: true, timeout: 2000 }).catch(() => {});
